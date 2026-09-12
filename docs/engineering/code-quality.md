@@ -35,7 +35,7 @@ code; don't add generality for a hypothetical second case.
 ## Project-specific rules (these earn their place)
 
 - **Domain rules import nothing from FastAPI, SQLAlchemy, or IO.** FIFO, cost split, settlement, and profit are plain functions over plain data. Enforce with a test that imports the domain package and asserts neither `fastapi` nor `sqlalchemy` landed in `sys.modules`.
-- **Money is `int` cents, named `*_cents`.** Never `float` or `Decimal` for money. Enforced by pyright strict and the OpenAPI integer assertion in `acceptance.md`.
+- **No field anywhere is a float.** Money is `int` cents (named `*_cents`); weights and quantities are also integers (see `data-model.md`). Never `float` or `Decimal`. Enforced by a test that walks every SQLAlchemy column and every Pydantic field and asserts none is typed `float`, plus pyright strict and the OpenAPI integer assertion in `acceptance.md`.
 - **Validate at the API boundary with Pydantic; domain functions trust their inputs.** Don't re-validate inside the domain; raise domain errors (insufficient stock) and map them to HTTP responses once, in one place.
 - **Every schema change ships an Alembic migration in the same PR.** No `create_all` outside tests.
 - **Frontend API types are generated, never hand-written.** The generator script output is committed; `make check` fails if regenerating changes it. Editing the generated file by hand is forbidden; change the Pydantic schema instead.

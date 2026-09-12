@@ -25,7 +25,7 @@ make check
 make e2e
 ```
 
-`make check` must run, in one invocation: Python lint and format check (ruff), Python type check (pyright), Python tests (pytest), frontend lint and format check (Biome), frontend type check (tsc), frontend unit tests (vitest), and the production frontend build. `make e2e` must build the frontend, start the API against a temporary SQLite file, and run the Playwright smoke test. Both must exit non-zero on any failure. The `Makefile` is the single place those underlying commands are defined.
+`make check` must run, in one invocation: Python lint and format check (ruff), Python type check (pyright), Python tests (pytest), frontend lint and format check (Biome), frontend type check (tsc), frontend unit tests (vitest), the production frontend build, and regenerating the frontend API types from the OpenAPI schema with a failure if the committed output differs. `make e2e` must build the frontend, start the API against a temporary SQLite file, and run the Playwright smoke test. Both must exit non-zero on any failure. The `Makefile` is the single place those underlying commands are defined.
 
 Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-level checks show progress but never replace final acceptance.
 
