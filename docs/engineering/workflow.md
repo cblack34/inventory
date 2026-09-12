@@ -72,7 +72,7 @@ Use this reviewer precedence:
 
 The selected reviewer changes the review source, not the quality gate. The clean-HEAD and address/reply/resolve requirements below always apply.
 
-Repository facts: `cblack34/inventory`, public, GitHub Copilot code review enabled per the owner. Request method not yet exercised here; try `gh pr edit <n> --add-reviewer copilot-pull-request-reviewer[bot]` or the Reviewers menu in the PR UI, then record whichever works in this paragraph. In this environment the fallback skills are named `pr-review:pr-review` (review) and `pr-review:address-pr-review` (address comments); use them where this document says `review-pr` and `address-pr-review`.
+Repository facts: `cblack34/inventory`, public, GitHub Copilot code review enabled per the owner. Copilot reviewed PR #1 automatically on open. Re-requesting from the CLI did not work on this repository: `gh pr edit --add-reviewer` fails to resolve the bot login, and `POST /pulls/{n}/requested_reviewers` with `Copilot` or `copilot-pull-request-reviewer[bot]` returns an empty reviewer list and produces no review. Re-request through the Reviewers menu in the PR UI until a working CLI method is found. In this environment the fallback skills are named `pr-review:pr-review` (review) and `pr-review:address-pr-review` (address comments); use them where this document says `review-pr` and `address-pr-review`.
 
 The **address → reply → resolve** flow is mandatory regardless of reviewer:
 
