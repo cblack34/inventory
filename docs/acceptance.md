@@ -69,6 +69,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 - [ ] WHEN a visit is already voided, undo of it is rejected.
 - [ ] WHEN undo is rejected for any reason, no reversal rows are written and the visit remains unvoided. _Automated check:_ trigger a rejected undo and assert the movement table and the visit's voided flag are both unchanged.
 - [ ] A manual movement form moves units between inventory locations, or from an inventory location to Waste, or to Sold or Sampled by the price rule (priced sizes to Sold, zero-price sizes to Sampled), with recipe, size, and count, by FIFO. Production's only outflow is the bake movement; Sold, Waste, and Sampled receive units from visits and manual removals and lose units only through undo of the visit movement that created them.
+- [ ] A manual movement can be undone with the same rules as a visit: same batch, all or nothing, rejected if already undone. _Automated check:_ toss then undo restores the stock snapshot.
 
 ## Login and deployment
 
