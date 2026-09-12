@@ -27,7 +27,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 ## Locations
 
 - [ ] Kitchen, Sold, Waste, Sampled, and Production exist after migration and cannot be deleted or renamed through the API.
-- [ ] A user can create, rename, and deactivate a stand or a market. Deactivating a location with units on hand is rejected with the on-hand listed.
+- [ ] A user can create, rename, and deactivate a stand or a market. Deactivating a location with units on hand is rejected with the on-hand listed. There is no API route that deletes any location, built-in or user-created; user locations are deactivate-only. _Automated check:_ OpenAPI document contains no DELETE on the locations resource; ORM relationships from location to movement carry no cascading delete.
 
 ## Ledger, stock, and FIFO
 
@@ -58,14 +58,16 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 
 ## Home screen and expiration
 
-- [ ] Stock is shown grouped by location, then recipe and size, with counts. Batches expiring within seven days are highlighted; expired batches are flagged distinctly.
+- [ ] Stock is shown grouped by inventory location (Kitchen, each stand, each market), then recipe and size, with counts. Production, Sold, Waste, and Sampled are terminal locations and never appear in stock views. Batches expiring within seven days are highlighted; expired batches are flagged distinctly.
 - [ ] A toss action on kitchen stock takes recipe, size, and count and records Waste by FIFO.
 - [ ] Nothing moves to Waste without a user action.
 
 ## Corrections
 
-- [ ] "Undo last visit" appends a reversing movement for every movement the visit created, marks the visit voided, and leaves the original movements in place. Stock afterward equals stock before the visit. _Automated check:_ stock snapshot before equals snapshot after undo.
-- [ ] A manual movement form accepts any from and to location, including out of Sold, Waste, or Sampled, with recipe, size, and count, by FIFO.
+- [ ] "Undo last visit" reverses every movement the visit created, in reverse creation order, targeting the same batch as the original movement, and marks the visit voided. The original movements remain in place. Stock afterward equals stock before the visit. _Automated check:_ stock snapshot before equals snapshot after undo.
+- [ ] WHEN a later movement has already consumed, at the same location, the batch a reversal would need to restore, undo is rejected instead of driving on-hand negative. _Automated check:_ a manual move drains a batch after a visit, then undo of that visit is rejected.
+- [ ] WHEN a visit is already voided, undo of it is rejected.
+- [ ] A manual movement form moves units between inventory locations, or from an inventory location to Waste or Sold, with recipe, size, and count, by FIFO. Moving units out of a terminal location (Production, Sold, Waste, Sampled) is only possible through undo.
 
 ## Login and deployment
 
@@ -78,7 +80,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 ## Money
 
 - [ ] No money field in the domain, ORM, or API schema is a float. _Automated check:_ pyright passes with money types declared as `int`; a test asserts the OpenAPI document declares every field ending in `_cents` as integer.
-- [ ] Every quantity field (counted, tossed, pulled, added, taken, returned, count made per size) and every money field (price, fee, revenue) is rejected if negative. _Automated check:_ Pydantic schemas declare these fields with a non-negative constraint; a test posts a negative value for one field from each family and asserts a 422 response.
+- [ ] Every quantity field (counted, tossed, pulled, added, taken, returned, count made per size) and every money input field (ingredient price, sale price, fee, revenue) is rejected if negative. Derived money values (profit, the expected-versus-actual cash difference) are signed and may be negative. _Automated check:_ Pydantic schemas declare the input fields with a non-negative constraint; a test posts a negative value for one field from each family and asserts a 422 response; a fixture with fee exceeding revenue asserts a negative profit is returned, not rejected.
 
 ## Research and decision gates
 

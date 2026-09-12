@@ -1,6 +1,6 @@
 # Data Model
 
-Domain concepts and the rules that bind them. Names and shapes are **illustrative guidance, not mandated implementation**; the rules are authoritative. Money is integer cents everywhere and never negative. Weights are integer grams or tenths of an ounce, the lead's choice, but one unit project-wide. Every quantity a user enters (counted, tossed, pulled, added, taken, returned, count made per size) is a non-negative integer; reject the request otherwise.
+Domain concepts and the rules that bind them. Names and shapes are **illustrative guidance, not mandated implementation**; the rules are authoritative. Money is integer cents everywhere. Every money input — ingredient price, size sale price, visit fee, visit revenue — is a non-negative integer; reject the request otherwise. Derived money values (profit, the expected-versus-actual cash difference) are signed integers; a loss or a shortfall is a legitimate negative value. Weights are integer grams or tenths of an ounce, the lead's choice, but one unit project-wide. Every quantity a user enters (counted, tossed, pulled, added, taken, returned, count made per size) is a non-negative integer; reject the request otherwise.
 
 ## Concepts
 
@@ -10,11 +10,11 @@ Domain concepts and the rules that bind them. Names and shapes are **illustrativ
 | Recipe | name, shelf life in days, ingredient lines (ingredient, quantity), sizes | Cost per size is computed on read, never stored. |
 | Size | recipe, name, portion weight, sale price, typical yield count | Price zero is legal and means "given away." No sample flag. |
 | Batch | recipe, baked date, expires date, total cost, per-size unit cost, count made per size | Cost fields are written once at bake and never updated. |
-| Location | name, kind | Kinds: `kitchen`, `stand`, `market`, `sold`, `waste`, `sampled`, `production`. Kitchen, Sold, Waste, Sampled, Production are singleton built-ins created by migration and undeletable. Stands and markets are user rows. Production is the source location for bakes, so every movement — including the first one for a batch — has a real from and to location. |
+| Location | name, kind | Kinds: `kitchen`, `stand`, `market` (inventory locations) and `production`, `sold`, `waste`, `sampled` (terminal locations). Kitchen, Sold, Waste, Sampled, Production are singleton built-ins created by migration and undeletable. Stands and markets are user rows. Terminal locations are not inventory: they never appear in stock views, on-hand, or FIFO, and their raw movement balance is not a meaningful quantity — every bake flows out of Production with no inflow, and Sold, Waste, and Sampled only ever accumulate. Production is the source location for bakes, so every movement — including the first one for a batch — has a real from and to location. |
 | Movement | batch, size, from location, to location, quantity, timestamp, optional visit | Append-only. No update or delete. No route deletes a visit or a movement; voiding a visit is the only lifecycle change, and it appends reversing movements rather than removing any row. |
 | Visit | location, date, revenue, fee, voided flag, notes | Only stand and market locations have visits. For a stand visit, revenue is the cash collected and fee is zero. |
 
-Derived, never stored: on-hand per (location, recipe, size, batch) equals the sum of movements in minus movements out.
+Derived, never stored: on-hand per (location, recipe, size, batch) equals the sum of movements in minus movements out. On-hand is defined only for inventory locations (Kitchen, stands, markets); Production, Sold, Waste, and Sampled are terminal and excluded from stock views, on-hand, and FIFO.
 
 ## Batch cost and per-size split
 
@@ -59,7 +59,9 @@ For a visit: `profit = revenue − fee − cost_of(Sold) − cost_of(Waste) − 
 
 ## Corrections
 
-"Undo last visit" appends, for every movement the visit created, a movement of the same quantity in the opposite direction with the same batch, tagged to a new correction record or to the same visit with a reversal marker, and marks the visit voided. The original movements remain. A manual movement form allows any from and to location including moving out of Sold, Waste, or Sampled back to a real location for other corrections.
+"Undo last visit" reverses every movement the visit created, in the reverse of the order they were created, and marks the visit voided. Each reversal moves the same quantity back from the movement's destination to its origin, targeting the same batch as the original movement — an explicit exception to FIFO, which governs only user-initiated removals (see "FIFO allocation" above). Undo is rejected if any reversal would drive on-hand negative at its source location: that happens when a later movement (a manual move, a toss, or another visit) already consumed the same batch at that location, so the pre-visit snapshot can no longer be exactly restored. Undo of an already-voided visit is rejected. The original movements remain; undo appends new movements rather than editing or deleting any row.
+
+A manual movement form moves units between inventory locations (Kitchen, a stand, a market), or from an inventory location to Waste or Sold, by FIFO. Moving units out of a terminal location (Production, Sold, Waste, Sampled) is only possible through undo.
 
 ## Expiration
 

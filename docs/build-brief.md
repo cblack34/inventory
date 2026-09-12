@@ -46,7 +46,7 @@ Numbered consistently with `AGENTS.md`.
 
 1. **Append-only movement ledger; stock is derived.** Failure mode: a stored count drifts from history and profit reports can't be explained. Verification: no update or delete route for movements; a test derives on-hand from movements and matches the API. See [`data-model.md`](data-model.md).
 2. **Batch cost frozen at bake time.** Failure mode: raising the flour price changes last month's profit. Verification: a test changes an ingredient price after a bake and asserts the batch cost is unchanged.
-3. **Automatic FIFO; the user never picks a batch.** Failure mode: a form or endpoint requires a batch id for a sale, waste, or move. Verification: sale, waste, and move requests accept recipe, size, and count only; a test with two batches confirms the older one is drained first.
+3. **Automatic FIFO for user-initiated removals; the user never picks a batch.** Failure mode: a form or endpoint requires a batch id for a sale, waste, or move. Verification: sale, waste, and move requests accept recipe, size, and count only; a test with two batches confirms the older one is drained first. Undo is the one internal exception: each reversal targets the same batch as the movement it undoes, not the current FIFO head (see [`data-model.md`](data-model.md)).
 4. **Money in integer cents.** Failure mode: a per-size cost split drifts from the batch cost by more than a bounded rounding remainder, or any money field uses a float. Verification: pyright rejects float money fields; a test asserts `Σ (unit_cost × count_made)` stays within `ceil(total_units / 2)` cents of the batch cost (exact equality is not achievable for every yield; see [`data-model.md`](data-model.md)).
 
 Directives that are not invariants but must hold: the stack in [`tech-stack.md`](tech-stack.md) is chosen and not up for substitution; the UI is mobile-first and every visit screen is a list of number inputs, not a table to navigate.
@@ -59,7 +59,7 @@ Directives that are not invariants but must hold: the stack in [`tech-stack.md`]
 - **Locations are data.** Kitchen, Sold, Waste, Sampled, and Production are built-in rows created by migration and cannot be deleted. Stands and markets are user rows with a type. Adding a stand is a row, not a deploy.
 - **Sample is not a concept in code.** A size with price zero behaves identically to any other size except where the price rule (zero price means Sampled, not Sold) applies. Do not add an `is_sample` flag.
 - **Visits own the movements they cause.** Every movement created by a visit references that visit so profit per visit is one query. Manual movements have no visit.
-- **Extension seams, deliberately empty:** a location type is an enum of stand and market so a third kind can be added; visit revenue is one field so Square import could later populate it. Build neither.
+- **Extension seams, deliberately empty:** the location kind enum is the full list in [`data-model.md`](data-model.md) (`kitchen`, `stand`, `market`, `production`, `sold`, `waste`, `sampled`), but only `stand` and `market` are user-creatable today, leaving room to add a third user-creatable kind later; visit revenue is one field so Square import could later populate it. Build neither.
 - **Auth is a single shared password** compared server-side, session held in a signed cookie. The password and cookie secret come from environment variables. Reason: two users on the internet need a lock, not an identity system.
 
 Details: [`data-model.md`](data-model.md), [`tech-stack.md`](tech-stack.md).
