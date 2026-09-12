@@ -20,7 +20,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 ## Bake
 
 - [ ] Recording a bake requires a recipe, date, and actual count per size, with expiration prefilled as date plus shelf life and editable.
-- [ ] WHEN a bake is recorded, the batch stores total cost and per-size unit cost computed from ingredient prices at that moment, and a movement per size moves the counted units from Production to Kitchen. _Automated check:_ `|Σ (unit_cost × count_made) − batch_cost| ≤ number of sizes` cents (exact equality is not achievable for every yield; see [`data-model.md`](data-model.md)).
+- [ ] WHEN a bake is recorded, the batch stores total cost and per-size unit cost computed from ingredient prices at that moment, and a movement per size moves the counted units from Production to Kitchen. _Automated check:_ `|Σ (unit_cost × count_made) − batch_cost| ≤ ceil(total_units / 2)` cents, and a 1010-cent single-size bake of 20 units yields a unit cost of 51 (exact equality is not achievable for every yield; see [`data-model.md`](data-model.md)).
 - [ ] WHEN an ingredient price changes after a bake, that batch's stored costs are unchanged. _Automated check:_ non-negotiable 2.
 - [ ] WHEN all counts are zero, the bake is rejected.
 
