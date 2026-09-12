@@ -11,8 +11,11 @@ Domain concepts and the rules that bind them. Names and shapes are **illustrativ
 | Size | recipe, name, portion weight, sale price, typical yield count | Price zero is legal and means "given away." No sample flag. |
 | Batch | recipe, baked date, expires date, total cost, per-size unit cost, count made per size | Cost fields are written once at bake and never updated. |
 | Location | name, kind | Inventory kinds: `kitchen`, `stand`, `market`. Terminal kinds: `production`, `sold`, `waste`, `sampled`. Kitchen, Production, Sold, Waste, and Sampled are singleton built-ins created by migration; they cannot be deleted, renamed, or deactivated. Stands and markets are user rows. Terminal locations hold no stock and never appear in on-hand, stock views, or FIFO. Production is the source of every bake movement, so every movement has two real ends; its only outflow is to Kitchen. Sold, Waste, and Sampled gain units from visits and manual removals and lose units only through undo. |
-| Movement | batch, size, from location, to location, quantity, timestamp, optional visit | Append-only. No update or delete. No route deletes a visit or a movement; voiding a visit is the only lifecycle change, and it appends reversing movements rather than removing any row. |
-| Visit | location, date, revenue, fee, expected_revenue_cents, voided flag, notes | Only stand and market locations have visits. For a stand visit, revenue is the cash collected and fee is zero. `expected_revenue_cents` is computed from each size's price at save time and stored on the visit, so a later price change never alters a saved visit's numbers. |
+| Entry | kind (`visit`, `manual`, or `reversal`), timestamp, voided flag | Every movement belongs to exactly one entry; there is no "movement with no entry" case. A `manual` entry is one user operation from the manual movement form and may contain several movement rows, one per batch FIFO selected. A `reversal` entry is what undo appends; see Corrections. |
+| Movement | entry, batch, size, from location, to location, quantity, timestamp, reverses movement (optional, unique) | Append-only. No update or delete. No route deletes an entry or a movement; voiding an entry is the only lifecycle change, and undo appends a reversal entry rather than removing any row. `reverses_movement` is set only on a reversal entry's rows and is unique, so a given original movement can be targeted by at most one reversal. |
+| Visit | entry, location, revenue, fee, expected_revenue_cents, notes | A visit is an entry with revenue, fee, expected_revenue_cents, and location; only stand and market locations have visits. For a stand visit, revenue is the cash collected and fee is zero. `expected_revenue_cents` is computed from each size's price at save time and stored on the visit, so a later price change never alters a saved visit's numbers. |
+
+All money facts in the table above are integer cents and are named with a `_cents` suffix in code (for example `current_price_cents`, `total_cost_cents`, `revenue_cents`); the table uses plain words for readability.
 
 Derived, never stored: on-hand per (location, recipe, size, batch) equals the sum of movements in minus movements out. On-hand is defined only for inventory locations (Kitchen, stands, markets); Production, Sold, Waste, and Sampled are terminal and excluded from stock views, on-hand, and FIFO.
 
@@ -34,7 +37,7 @@ Any operation that removes units of a (location, recipe, size) takes from the ba
 
 ## Visit settlement
 
-Given the location's derived on-hand per (recipe, size) immediately before the visit:
+Given the location's derived on-hand per (recipe, size) immediately before the visit, saving a visit is a single transaction: every constraint below for that visit type — non-negativity, counted ≤ on-hand, tossed + pulled ≤ counted, returned + tossed ≤ taken, and FIFO availability for every removal — is checked before any movement row is written. A rejected visit writes nothing, so a bad payload can never leave partial ledger rows or deplete Kitchen.
 
 **Stand visit** input: counted per size, tossed per size, cash collected, pulled-to-kitchen per size, added-from-kitchen per size.
 
@@ -42,14 +45,14 @@ Given the location's derived on-hand per (recipe, size) immediately before the v
 2. For each size: if `price > 0`, move `missing` to Sold; else move `missing` to Sampled. FIFO.
 3. Move `tossed` to Waste. FIFO from the counted remainder.
 4. Move `pulled` to Kitchen. Move `added` from Kitchen to the stand.
-5. `expected_cash = Σ (missing × price)`, computed from current prices at save time and persisted on the visit as `expected_revenue_cents`. Show alongside `cash collected`. The difference is shrink; store nothing extra for it.
+5. `expected_revenue_cents = Σ (missing × price)`, computed from current prices at save time and persisted on the visit. Show alongside `revenue_cents` (the cash collected). `shrink_cents = expected_revenue_cents − revenue_cents`; positive means cash came up short.
 
 **Market visit** input: taken-from-kitchen per size, returned per size, tossed per size, revenue total, fee.
 
-1. Move `taken` from Kitchen to the market location. FIFO.
-2. `missing = taken − returned − tossed`. Reject if negative.
+1. `missing = taken − returned − tossed`. Reject if negative.
+2. Move `taken` from Kitchen to the market location. FIFO.
 3. Sold or Sampled by the price rule, as above. Move `tossed` to Waste. Move `returned` to Kitchen.
-4. `expected_revenue = Σ (missing × price)`, computed from current prices at save time and persisted on the visit as `expected_revenue_cents`. Show alongside the entered revenue.
+4. `expected_revenue_cents = Σ (missing × price)`, computed from current prices at save time and persisted on the visit. Show alongside the entered `revenue_cents`. The same `expected_revenue_cents − revenue_cents` difference shown for a stand visit applies here; it is not called shrink for a market visit.
 
 Sample returns prefill to zero in the market form because sample packaging does not survive an event. It is a prefill, not a rule.
 
@@ -59,9 +62,9 @@ For a visit: `profit = revenue − fee − cost_of(Sold) − cost_of(Waste) − 
 
 ## Corrections
 
-"Undo last visit" appends, for every movement the visit created and in reverse creation order, a movement of the same quantity and the same batch from the original destination back to the original origin, then marks the visit voided. Targeting the original batch is the one exception to FIFO, which governs user-initiated removals only. Undo is all or nothing: if any reversal whose source is an inventory location would drive that batch's on-hand negative there, because a later movement already consumed it, the whole undo is rejected, no rows are written, and the visit stays unvoided. Reversals out of Sold, Waste, or Sampled need no balance check, since the visit's own movement put the units there. Undo of an already-voided visit is rejected. Original movements are never edited or deleted.
+Undo targets one original entry — a visit or a manual operation — and appends a new entry of kind `reversal`. For every movement the original entry created, in reverse creation order, the reversal entry gets one movement of the same quantity and the same batch from the original destination back to the original origin, and that reversal movement's `reverses_movement` is set to the exact original row's id. Targeting the original batch is the one exception to FIFO, which governs user-initiated removals only. `reverses_movement` is unique, so at most one reversal movement can ever point at a given original row: two otherwise-identical manual removals still produce two distinct movement rows, undo targets the id, not the data, and undoing the same row twice is rejected by that constraint rather than by matching quantities or batches. Undo is all or nothing: if any reversal whose source is an inventory location would drive that batch's on-hand negative there, because a later movement already consumed it, the whole undo is rejected, no rows are written, and the original entry stays unvoided. Reversals out of Sold, Waste, or Sampled need no balance check, since the original entry's own movement put the units there. Undo of an already-voided entry is rejected. Original movements are never edited or deleted.
 
-A manual movement form moves units between inventory locations by FIFO, or removes them from an inventory location to Waste, or to Sold or Sampled by the same price rule a visit uses. A manual movement is a one-movement entry and can be undone with the same rules.
+A manual movement form moves units between inventory locations by FIFO, or removes them from an inventory location to Waste, or to Sold or Sampled by the same price rule a visit uses. A manual move's destination may never be a market: markets receive units only through a market visit's `taken` step, and a visit returns, tosses, or sells everything it took, so no stock is left at a market between visits for a manual move to disturb. A manual operation can be undone with the same rules as a visit.
 
 ## Expiration
 

@@ -34,7 +34,7 @@ code; don't add generality for a hypothetical second case.
 
 ## Project-specific rules (these earn their place)
 
-- **Domain rules import nothing from FastAPI, SQLAlchemy, or IO.** FIFO, cost split, settlement, and profit are plain functions over plain data. Enforce with a test that imports the domain package and asserts neither `fastapi` nor `sqlalchemy` landed in `sys.modules`.
+- **Domain rules import nothing from FastAPI, SQLAlchemy, or IO.** FIFO, cost split, settlement, and profit are plain functions over plain data. Enforce with a pytest test that runs the check in a fresh subprocess — for example `subprocess.run([sys.executable, "-c", "import <domain>; import sys; assert 'fastapi' not in sys.modules and 'sqlalchemy' not in sys.modules"], check=True)` — rather than asserting on the current process's `sys.modules`, so another test importing FastAPI or SQLAlchemy first can't taint this assertion with a false failure regardless of suite order.
 - **No field anywhere is a float.** Money is `int` cents (named `*_cents`); weights and quantities are also integers (see `data-model.md`). Never `float` or `Decimal`. Enforced by a test that walks every SQLAlchemy column and every Pydantic field and asserts none is typed `float`, plus pyright strict and the OpenAPI integer assertion in `acceptance.md`.
 - **Validate at the API boundary with Pydantic; domain functions trust their inputs.** Don't re-validate inside the domain; raise domain errors (insufficient stock) and map them to HTTP responses once, in one place.
 - **Every schema change ships an Alembic migration in the same PR.** No `create_all` outside tests.

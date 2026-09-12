@@ -35,6 +35,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 - [ ] On-hand per location, recipe, size, and batch is computed from movements. _Automated check:_ after a sequence of movements, the stock endpoint equals an independent fold over the movement list.
 - [ ] Any removal of units from a location takes from the batch with the earliest expiration first and may span batches. Recipe, size, and count are the only batch-selection fields the user provides; a manual move additionally names its source and destination locations. _Automated check:_ two batches with different expirations; removing more than the older batch holds drains it first and takes the remainder from the newer.
 - [ ] WHEN a removal exceeds on-hand at that location, the whole request is rejected and the response names location, recipe, size, on-hand, and requested. No partial movement is written.
+- [ ] Saving a visit is one transaction: every constraint for that visit type (non-negativity, counted ≤ on-hand, tossed + pulled ≤ counted, returned + tossed ≤ taken, FIFO availability for every removal) is checked before any movement row is written, and a rejected visit writes no rows at all. _Automated check:_ a market visit with `returned + tossed > taken` is rejected and the movement table has zero rows referencing that visit, including the Kitchen-to-market `taken` movement.
 
 ## Stand visit
 
@@ -42,14 +43,14 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 - [ ] WHEN the visit is saved, units missing since the last visit move to Sold for priced sizes and to Sampled for zero-price sizes, tossed units move to Waste, pulled units move to Kitchen, added units move from Kitchen to the stand, and all movements reference the visit.
 - [ ] WHEN a counted value exceeds on-hand, the visit is rejected with the offending recipe and size named.
 - [ ] WHEN tossed plus pulled exceeds counted for a size, the visit is rejected with that size named.
-- [ ] The saved visit shows expected cash, actual cash, and the difference. Expected cash is computed from size prices at save time and stored on the visit; a later price change never alters a previously saved visit's expected cash. _Automated check:_ save a visit, change the size's price, reload the visit, and assert expected cash is unchanged.
+- [ ] The saved visit shows expected revenue, cash collected, and shrink (`shrink_cents = expected_revenue_cents − revenue_cents`, positive when short). Expected revenue is computed from size prices at save time and stored on the visit; a later price change never alters a previously saved visit's expected revenue. _Automated check:_ save a visit, change the size's price, reload the visit, and assert expected revenue is unchanged; assert shrink is positive for a visit where revenue is less than expected revenue.
 
 ## Market visit
 
 - [ ] The form lists kitchen stock with an input for taken, then for each taken size inputs for returned and tossed, with sample-size returned prefilled to zero and editable, plus revenue total and fee.
 - [ ] WHEN the visit is saved, taken units move from Kitchen to the market, missing units move to Sold or Sampled by the price rule, tossed units to Waste, returned units to Kitchen, and all movements reference the visit.
 - [ ] WHEN returned plus tossed exceeds taken for a size, the visit is rejected with that size named.
-- [ ] The saved visit shows expected revenue from units sold next to the entered revenue, computed from size prices at save time and stored on the visit so a later price change never alters it.
+- [ ] The saved visit shows expected revenue from units sold next to the entered revenue, computed from size prices at save time and stored on the visit as `expected_revenue_cents` so a later price change never alters it. The `expected_revenue_cents − revenue_cents` difference is shown but is not labeled shrink for a market visit.
 
 ## Profit
 
@@ -64,12 +65,12 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 
 ## Corrections
 
-- [ ] "Undo last visit" reverses every movement the visit created, in reverse creation order, targeting the same batch as the original movement, and marks the visit voided. The original movements remain in place. Stock afterward equals stock before the visit. _Automated check:_ stock snapshot before equals snapshot after undo.
+- [ ] Undo targets one original entry (a visit or a manual operation) and appends a reversal entry whose movements each carry `reverses_movement`, set to the exact original row's id, in reverse creation order, targeting the same batch as the original movement; the original entry is marked voided. The original movements remain in place. Stock afterward equals stock before the entry. _Automated check:_ stock snapshot before equals snapshot after undo.
 - [ ] WHEN a later movement has already consumed, at the same inventory location (Kitchen, a stand, or a market), the batch a reversal into that location would need to restore, undo is rejected instead of driving on-hand negative there. Reversals whose source is Sold, Waste, or Sampled need no such check. _Automated check:_ a manual move drains a batch after a visit, then undo of that visit is rejected.
-- [ ] WHEN a visit is already voided, undo of it is rejected.
-- [ ] WHEN undo is rejected for any reason, no reversal rows are written and the visit remains unvoided. _Automated check:_ trigger a rejected undo and assert the movement table and the visit's voided flag are both unchanged.
-- [ ] A manual movement form moves units between inventory locations, or from an inventory location to Waste, or to Sold or Sampled by the price rule (priced sizes to Sold, zero-price sizes to Sampled), with recipe, size, and count, by FIFO. Production's only outflow is the bake movement; Sold, Waste, and Sampled receive units from visits and manual removals and lose units only through undo.
-- [ ] A manual movement can be undone with the same rules as a visit: same batch, all or nothing, rejected if already undone. _Automated check:_ toss then undo restores the stock snapshot.
+- [ ] WHEN an entry is already voided, undo of it is rejected, and a duplicate manual removal cannot be used to bypass that: undoing the same movement row twice is rejected by the uniqueness of `reverses_movement`, not by matching quantity or batch. _Automated check:_ two identical manual removals (same recipe, size, quantity, and resulting batch) produce two distinct movement rows; undoing the first succeeds once and a second undo of that same row is rejected while the second removal's row is untouched.
+- [ ] WHEN undo is rejected for any reason, no reversal rows are written and the original entry remains unvoided. _Automated check:_ trigger a rejected undo and assert the movement table and the entry's voided flag are both unchanged.
+- [ ] A manual movement form moves units between inventory locations, or from an inventory location to Waste, or to Sold or Sampled by the price rule (priced sizes to Sold, zero-price sizes to Sampled), with recipe, size, and count, by FIFO. Its destination may never be a market. Production's only outflow is the bake movement; Sold, Waste, and Sampled receive units from visits and manual removals and lose units only through undo. _Automated check:_ a manual move naming a market as the destination is rejected.
+- [ ] A manual operation can be undone with the same rules as a visit: same batch, all or nothing, rejected if already undone. _Automated check:_ toss then undo restores the stock snapshot.
 
 ## Login and deployment
 
