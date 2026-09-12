@@ -1,6 +1,6 @@
 # Data Model
 
-Domain concepts and the rules that bind them. Names and shapes are **illustrative guidance, not mandated implementation**; the rules are authoritative. Money is integer cents everywhere. Weights are integer grams or tenths of an ounce, the lead's choice, but one unit project-wide.
+Domain concepts and the rules that bind them. Names and shapes are **illustrative guidance, not mandated implementation**; the rules are authoritative. Money is integer cents everywhere and never negative. Weights are integer grams or tenths of an ounce, the lead's choice, but one unit project-wide. Every quantity a user enters (counted, tossed, pulled, added, taken, returned, count made per size) is a non-negative integer; reject the request otherwise.
 
 ## Concepts
 
@@ -10,8 +10,8 @@ Domain concepts and the rules that bind them. Names and shapes are **illustrativ
 | Recipe | name, shelf life in days, ingredient lines (ingredient, quantity), sizes | Cost per size is computed on read, never stored. |
 | Size | recipe, name, portion weight, sale price, typical yield count | Price zero is legal and means "given away." No sample flag. |
 | Batch | recipe, baked date, expires date, total cost, per-size unit cost, count made per size | Cost fields are written once at bake and never updated. |
-| Location | name, kind | Kinds: `kitchen`, `stand`, `market`, `sold`, `waste`, `sampled`. Kitchen, Sold, Waste, Sampled are singleton built-ins created by migration and undeletable. Stands and markets are user rows. |
-| Movement | batch, size, from location, to location, quantity, timestamp, optional visit | Append-only. No update or delete. |
+| Location | name, kind | Kinds: `kitchen`, `stand`, `market`, `sold`, `waste`, `sampled`, `production`. Kitchen, Sold, Waste, Sampled, Production are singleton built-ins created by migration and undeletable. Stands and markets are user rows. Production is the source location for bakes, so every movement — including the first one for a batch — has a real from and to location. |
+| Movement | batch, size, from location, to location, quantity, timestamp, optional visit | Append-only. No update or delete. No route deletes a visit or a movement; voiding a visit is the only lifecycle change, and it appends reversing movements rather than removing any row. |
 | Visit | location, date, revenue, fee, voided flag, notes | Only stand and market locations have visits. For a stand visit, revenue is the cash collected and fee is zero. |
 
 Derived, never stored: on-hand per (location, recipe, size, batch) equals the sum of movements in minus movements out.
@@ -22,8 +22,9 @@ At bake time:
 
 - `batch_cost = Σ over recipe lines (quantity × ingredient.current_price)`, rounded to cents once at the end.
 - `total_weight = Σ over sizes (count_made × portion_weight)`.
-- `unit_cost(size) = batch_cost × portion_weight / total_weight`, rounded to cents.
-- The rounded per-size unit costs multiplied by counts will not sum exactly to `batch_cost`. Assign the remainder in cents to the size with the largest total weight so `Σ (unit_cost × count_made) == batch_cost` holds exactly. Test this.
+- `unit_cost(size) = round(batch_cost × portion_weight / total_weight)` to cents.
+- Recording a bake writes one movement per size from Production to Kitchen for `count_made` units, the same way every other transfer is written; there is no batch-only special case in the ledger.
+- Rounding per size means `Σ (unit_cost × count_made)` will not always equal `batch_cost` exactly — with integer per-size unit costs, no remainder assignment can force an exact match for every yield. Example: a 101-cent batch split into two equal-weight sizes of two units each prices each unit at 25 or 26 cents; the achievable totals are 100, 102, or 104 cents, never 101. Do not chase exactness with a remainder trick. Instead bound the drift: `|Σ (unit_cost × count_made) − batch_cost| ≤ number_of_sizes` cents. `batch_cost` stays the authoritative record of what the batch cost; `unit_cost` per size drives movement costing and profit and is internally consistent even when it does not reconcile to the cent against `batch_cost`. Test the bound, not equality.
 
 A batch with zero total weight (nothing made) is rejected.
 
@@ -37,7 +38,7 @@ Given the location's derived on-hand per (recipe, size) immediately before the v
 
 **Stand visit** input: counted per size, tossed per size, cash collected, pulled-to-kitchen per size, added-from-kitchen per size.
 
-1. `missing = on_hand − counted`. Reject if negative.
+1. `missing = on_hand − counted`. Reject if negative. Reject if `tossed + pulled > counted` for any size, since both come out of the counted remainder that stays at the stand.
 2. For each size: if `price > 0`, move `missing` to Sold; else move `missing` to Sampled. FIFO.
 3. Move `tossed` to Waste. FIFO from the counted remainder.
 4. Move `pulled` to Kitchen. Move `added` from Kitchen to the stand.

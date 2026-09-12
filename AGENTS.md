@@ -34,7 +34,7 @@ Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-l
 1. **The movement ledger is append-only.** Stock on hand is always derived from movements, never stored. Corrections are new compensating movements. Reason: every profit number must be reconstructible from history.
 2. **Batch cost is frozen at bake time.** Changing an ingredient price never changes an existing batch's cost. Reason: past profit reports must not drift.
 3. **FIFO is automatic.** The user enters counts per recipe and size; the system picks the oldest batch. No screen or endpoint asks the user to choose a batch. Reason: that is how the business already operates, and choosing batches by hand is the error-prone step this app removes.
-4. **Money is never a float.** Store and compute in integer cents. Reason: cost splitting and profit must be exact to the cent.
+4. **Money is never a float.** Store and compute in integer cents. Reason: cost splitting and profit must be computed without floating-point drift. A per-size cost split may leave a bounded rounding remainder against the batch's total cost (see [`docs/data-model.md`](docs/data-model.md)); bound and document that remainder, never chase it to exact equality with float math.
 
 ## Strategic-to-tactical handoff
 

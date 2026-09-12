@@ -20,18 +20,18 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 ## Bake
 
 - [ ] Recording a bake requires a recipe, date, and actual count per size, with expiration prefilled as date plus shelf life and editable.
-- [ ] WHEN a bake is recorded, the batch stores total cost and per-size unit cost computed from ingredient prices at that moment, and units appear on hand in Kitchen. _Automated check:_ `Σ (unit_cost × count_made) == batch_cost` exactly.
+- [ ] WHEN a bake is recorded, the batch stores total cost and per-size unit cost computed from ingredient prices at that moment, and a movement per size moves the counted units from Production to Kitchen. _Automated check:_ `|Σ (unit_cost × count_made) − batch_cost| ≤ number of sizes` cents (exact equality is not achievable for every yield; see [`data-model.md`](data-model.md)).
 - [ ] WHEN an ingredient price changes after a bake, that batch's stored costs are unchanged. _Automated check:_ non-negotiable 2.
 - [ ] WHEN all counts are zero, the bake is rejected.
 
 ## Locations
 
-- [ ] Kitchen, Sold, Waste, and Sampled exist after migration and cannot be deleted or renamed through the API.
+- [ ] Kitchen, Sold, Waste, Sampled, and Production exist after migration and cannot be deleted or renamed through the API.
 - [ ] A user can create, rename, and deactivate a stand or a market. Deactivating a location with units on hand is rejected with the on-hand listed.
 
 ## Ledger, stock, and FIFO
 
-- [ ] There is no API route that updates or deletes a movement. _Automated check:_ OpenAPI document contains no PUT, PATCH, or DELETE on the movements resource.
+- [ ] There is no API route that updates or deletes a movement, and no API route that deletes a visit. Voiding via "undo last visit" is the only lifecycle change to a visit, and it never removes or edits the visit's original movements. _Automated check:_ OpenAPI document contains no PUT, PATCH, or DELETE on the movements resource and no DELETE on the visits resource; a test voids a visit and asserts its original movement rows are unchanged in the database; ORM relationships from visit and batch to movement carry no cascading delete.
 - [ ] On-hand per location, recipe, size, and batch is computed from movements. _Automated check:_ after a sequence of movements, the stock endpoint equals an independent fold over the movement list.
 - [ ] Any removal of units from a location takes from the batch with the earliest expiration first and may span batches. The request carries recipe, size, and count only. _Automated check:_ two batches with different expirations; removing more than the older batch holds drains it first and takes the remainder from the newer.
 - [ ] WHEN a removal exceeds on-hand at that location, the whole request is rejected and the response names location, recipe, size, on-hand, and requested. No partial movement is written.
@@ -41,6 +41,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 - [ ] The form lists every recipe and size currently on hand at the stand with inputs for counted, tossed, pulled to kitchen, and a separate list of kitchen stock with an input for added to stand, plus cash collected.
 - [ ] WHEN the visit is saved, units missing since the last visit move to Sold for priced sizes and to Sampled for zero-price sizes, tossed units move to Waste, pulled units move to Kitchen, added units move from Kitchen to the stand, and all movements reference the visit.
 - [ ] WHEN a counted value exceeds on-hand, the visit is rejected with the offending recipe and size named.
+- [ ] WHEN tossed plus pulled exceeds counted for a size, the visit is rejected with that size named.
 - [ ] The saved visit shows expected cash, actual cash, and the difference.
 
 ## Market visit
@@ -77,6 +78,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 ## Money
 
 - [ ] No money field in the domain, ORM, or API schema is a float. _Automated check:_ pyright passes with money types declared as `int`; a test asserts the OpenAPI document declares every field ending in `_cents` as integer.
+- [ ] Every quantity field (counted, tossed, pulled, added, taken, returned, count made per size) and every money field (price, fee, revenue) is rejected if negative. _Automated check:_ Pydantic schemas declare these fields with a non-negative constraint; a test posts a negative value for one field from each family and asserts a 422 response.
 
 ## Research and decision gates
 
