@@ -25,7 +25,7 @@ make check
 make e2e
 ```
 
-`make check` must run, in one invocation: Python lint and format check (ruff), Python type check (pyright), Python tests (pytest), frontend lint and format check (Biome), frontend type check (tsc), frontend unit tests (vitest), the production frontend build, and regenerating the frontend API types from the OpenAPI schema with a failure if the committed output differs. `make e2e` must build the frontend, start the API against a temporary SQLite file, and run the Playwright smoke test. Both must exit non-zero on any failure. The `Makefile` is the single place those underlying commands are defined; it does not exist until the CI-bootstrap PR ships it as the repository's first code-bearing delivery unit (see [`docs/engineering/workflow.md`](docs/engineering/workflow.md)), so a docs-only PR before that point cannot run it.
+`make check` must run, in one invocation: Python lint and format check (ruff), Python type check (pyright), Python tests (pytest), frontend lint and format check (Biome), frontend type check (tsc), frontend unit tests (vitest), the production frontend build, and regenerating the frontend API types from the OpenAPI schema with a failure if the committed output differs. `make e2e` must build the frontend, start the API against a temporary SQLite file, and run the Playwright smoke test. Both must exit non-zero on any failure. The `Makefile` is the single place those underlying commands are defined; it does not exist until the CI-bootstrap PR ships it as the repository's first code-bearing delivery unit (see [`docs/engineering/workflow.md`](docs/engineering/workflow.md)), so a docs-only PR before that point cannot run it. From the CI-bootstrap PR onward, both targets must define every stage above, but a stage whose real inputs do not exist yet — no OpenAPI schema to generate types from, no login or home screen for the smoke test — may pass against a minimal placeholder until the slice that introduces those inputs replaces it. No stage may be silently skipped or removed, and a placeholder must never survive the slice that makes the real stage possible.
 
 Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-level checks show progress but never replace final acceptance.
 
@@ -33,7 +33,7 @@ Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-l
 
 1. **The movement ledger is append-only.** Stock on hand is always derived from movements, never stored. Corrections are new compensating movements. Reason: every profit number must be reconstructible from history.
 2. **Batch cost is frozen at bake time.** Changing an ingredient price never changes an existing batch's cost. Reason: past profit reports must not drift.
-3. **FIFO is automatic for user-initiated removals.** The user enters counts per recipe and size; the system picks the oldest batch. No screen or endpoint asks the user to choose a batch. Undo is the one internal exception: a reversal targets the same batch as the movement it undoes, not the current FIFO head. Reason: that is how the business already operates, and choosing batches by hand is the error-prone step this app removes.
+3. **FIFO is automatic for user-initiated removals.** The user enters counts per recipe and size; the system picks the earliest-expiring batch. No screen or endpoint asks the user to choose a batch. Undo is the one internal exception: a reversal targets the same batch as the movement it undoes, not the current FIFO head. Reason: that is how the business already operates, and choosing batches by hand is the error-prone step this app removes.
 4. **Money is never a float.** Store and compute in integer cents. Reason: cost splitting and profit must be computed without floating-point drift. A per-size cost split may leave a bounded rounding remainder against the batch's total cost (see [`docs/data-model.md`](docs/data-model.md)); bound and document that remainder, never chase it to exact equality with float math.
 
 ## Strategic-to-tactical handoff
@@ -55,8 +55,8 @@ Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-l
 ## Always / Ask first / Never
 
 - **Always:** follow [`docs/engineering/workflow.md`](docs/engineering/workflow.md); verify unfamiliar APIs against current official docs; run required checks; update affected strategic and descriptive docs with behavior changes; add an Alembic migration with every schema change.
-- **Ask first or stop:** changing active scope, public contracts, non-negotiables, final acceptance, or an architecture boundary; adopting a paid service; adding a runtime dependency not listed in [`docs/tech-stack.md`](docs/tech-stack.md); making an external or destructive change beyond recorded authority; starting a broad refactor.
-- **Never:** invent repository facts; commit secrets; bypass red verification; merge into `main`, auto-merge or queue on `main`, or push directly to `main`, or delegate any of those; force current code into an obsolete plan; implement deferred scope (Square API, Found, price history, ingredient stock, multi-user) or speculative adapters for it.
+- **Ask first or stop:** changing active scope, directives, public contracts, non-negotiables, final acceptance, or an architecture boundary; adopting a paid service; adding a runtime dependency not listed in [`docs/tech-stack.md`](docs/tech-stack.md); making an external or destructive change beyond recorded authority; starting a broad refactor.
+- **Never:** invent repository facts; commit secrets; bypass red verification; merge into `main`, auto-merge or queue on `main`, or push directly to `main`, or delegate any of those; force current code into an obsolete plan; implement deferred scope (e.g. Square API, Found, price history, ingredient stock, multi-user — full list in [`docs/acceptance.md`](docs/acceptance.md)'s "Deliberately excluded" section) or speculative adapters for it.
 
 ## Dependencies
 
@@ -65,7 +65,7 @@ Prefer existing or standard-library capabilities. The adopted set is in [`docs/t
 ## Code quality
 
 - Follow [`docs/engineering/code-quality.md`](docs/engineering/code-quality.md).
-- Keep it small. This is four screens for two users. Prefer deleting over abstracting.
+- Keep it small. This is a handful of screens for two users. Prefer deleting over abstracting.
 
 ## Active build pack
 
