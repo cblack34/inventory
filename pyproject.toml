@@ -29,8 +29,9 @@ line-length = 100
 
 [tool.ruff.lint]
 # Correctness, imports, modernization, bugbear, plus maintainability:
-# C90 cyclomatic complexity, PL pylint design limits (args, branches,
-# statements, returns), SIM simplify, RET return style, ARG unused args,
+# C90 cyclomatic complexity, PL the pylint port (design limits on args,
+# branches, statements, and returns, plus its convention, error, and
+# warning rules), SIM simplify, RET return style, ARG unused args,
 # C4 comprehensions, PERF perf lints, ERA commented-out code, T20 print,
 # N naming, RUF ruff-specific.
 select = [
@@ -52,7 +53,6 @@ max-statements = 40
 
 [tool.pyright]
 typeCheckingMode = "strict"
-include = ["src", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
