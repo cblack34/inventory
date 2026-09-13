@@ -69,7 +69,7 @@ Details: [`data-model.md`](data-model.md), [`tech-stack.md`](tech-stack.md).
 Adopted decisions, all made by the user in discussion:
 
 - Visit-centric design instead of live stock; the app is used after trips, not during.
-- FIFO everywhere instead of batch selection.
+- FIFO for every user-initiated removal instead of batch selection; undo reversals target the original batch instead.
 - Cost split across sizes by portion weight, not by count, so giveaways don't inflate the cost of what is sold.
 - Sample is an ordinary zero-price size, allowed at any location, because the owners intend to trial samples at stands.
 - Expected-versus-actual cash per stand visit as the shrink measure; no separate theft or loss concept.
@@ -84,8 +84,7 @@ Assumptions the implementation lead may rely on unless the user says otherwise:
 
 Open gates, none blocking implementation:
 
-- **Hosting target.** The user has not chosen between a generic VPS and AWS Lightsail Containers. The single-container plus persistent-volume shape works on both. Decide before the first deployment.
-- **Copilot review request method.** Copilot review is enabled on the repository but the exact request mechanism has not been exercised here. Verify on the first PR and record it in `workflow.md`.
+- **Hosting target.** The user has not chosen between a generic VPS and an AWS Lightsail instance (a VM running Docker Compose with an attached block disk); the single-container plus persistent-volume shape works on both. AWS Lightsail Container Service and AWS App Runner are rejected: neither offers a persistent disk for SQLite. Decide before the first deployment.
 
 No external standards or licenses shape this project. No research doc is needed.
 
@@ -100,7 +99,7 @@ No external standards or licenses shape this project. No research doc is needed.
 
 ## Known dependencies
 
-- Per-size cost cannot be computed before portion weights and actual yield counts exist, so the recipe and bake capabilities must exist before any visit can report profit.
+- Recipe cost per size needs only portion weights and typical yield counts, both stored on the recipe, so the recipe screen can show a cost estimate before any bake exists. The frozen batch cost used for profit is different: it needs actual bake counts, so the recipe and bake capabilities must both exist before any visit can report profit.
 - Visit settlement (what went missing at a stand) depends on derived on-hand at that location, which depends on the movement ledger and FIFO allocation. The ledger is causally first.
 - Generated TypeScript types depend on stable Pydantic schemas for the routes being built. Frontend screens for a capability follow its API.
 - Nightly backup and deployment depend on the hosting decision, which is open. Nothing in code depends on it.
