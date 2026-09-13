@@ -44,7 +44,7 @@ Given the location's derived on-hand per (recipe, size) immediately before the v
 **Stand visit** input: counted per size, tossed per size, cash collected, pulled-to-kitchen per size, added-from-kitchen per size.
 
 1. Settlement covers every (recipe, size) with stock on hand at the stand; the form prefills `counted` to on-hand (a default the user may change), so a pair the payload omits is treated the same as an untouched row: `counted = on_hand`, no movement. `missing = on_hand − counted`. Reject if negative. Reject if `tossed + pulled > counted` for any size, since both come out of the counted remainder that stays at the stand.
-2. For each size: if `price > 0`, move `missing` to Sold; else move `missing` to Sampled. FIFO.
+2. For each size, `missing` is routed to Sold if `price > 0`, else to Sampled.
 3. Allocate the stand-side removals in sequence from the counted remainder, each from what the previous one left: `missing` (step 2), then `tossed`, then `pulled`. Allocate `added` FIFO over Kitchen's pre-visit on-hand, the same stock the form listed. All four batch lists are fixed before any row is written, so no two allocations can claim the same units and `added` can never select units this visit pulls back.
 4. Write the movements: `missing` to Sold or Sampled, `tossed` to Waste, `pulled` to Kitchen, `added` from Kitchen to the stand. A size whose `added` exceeds Kitchen's pre-visit on-hand is rejected.
 5. `expected_revenue_cents = Σ (missing × price)`, computed from current prices at save time and persisted on the visit. Show alongside `revenue_cents` (the cash collected). `shrink_cents = expected_revenue_cents − revenue_cents`; positive means cash came up short.
