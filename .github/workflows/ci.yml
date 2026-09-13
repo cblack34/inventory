@@ -22,5 +22,12 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: src/web/.node-version
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
       - name: Run checks
         run: make check
