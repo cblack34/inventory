@@ -154,8 +154,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -355,5 +355,11 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,windows,linux,python,jetbrains+all,visualstudiocode
+
+# Node (web frontend)
+node_modules/
+dist-ssr/
+*.local
+
 # Claude Code agent worktrees
 .claude/worktrees/
