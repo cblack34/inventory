@@ -47,7 +47,7 @@ Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-l
 
 ## Delivery governance
 
-- A human is the only authority that physically merges to `main` in GitHub. Agents never merge, auto-merge, queue, automate, delegate, or push directly to `main`.
+- A human is the only authority that physically merges to `main` in GitHub. Agents never merge, auto-merge, queue, automate, or push directly to `main`, and never delegate any of those actions.
 - **Active topology:** feature spine with leaf PRs. The implementation lead may squash-merge clean, reviewed, green leaf PRs into the spine; the final spine PR to `main` requires human merge.
 - Repository: `cblack34/inventory` on GitHub, public, default branch `main`. GitHub Copilot code review is available and is the first-choice reviewer. Fall back to `review-pr`, then a fresh review sub-agent, per [`docs/engineering/workflow.md`](docs/engineering/workflow.md). The author's own self-review never satisfies the independent gate.
 - Use a Conventional Commits PR title and the workflow's issue-closing rules; only a PR to `main` may carry `Closes #N`.
@@ -56,7 +56,7 @@ Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-l
 
 - **Always:** follow [`docs/engineering/workflow.md`](docs/engineering/workflow.md); verify unfamiliar APIs against current official docs; run required checks; update affected strategic and descriptive docs with behavior changes; add an Alembic migration with every schema change.
 - **Ask first or stop:** changing active scope, public contracts, non-negotiables, final acceptance, or an architecture boundary; adopting a paid service; adding a runtime dependency not listed in [`docs/tech-stack.md`](docs/tech-stack.md); making an external or destructive change beyond recorded authority; starting a broad refactor.
-- **Never:** invent repository facts; commit secrets; bypass red verification; merge, auto-merge, queue, automate, delegate, or push directly to `main`; force current code into an obsolete plan; implement deferred scope (Square API, Found, price history, ingredient stock, multi-user) or speculative adapters for it.
+- **Never:** invent repository facts; commit secrets; bypass red verification; merge, auto-merge, queue, automate, or push directly to `main`, or delegate any of those actions; force current code into an obsolete plan; implement deferred scope (Square API, Found, price history, ingredient stock, multi-user) or speculative adapters for it.
 
 ## Dependencies
 

@@ -20,22 +20,25 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 ## Bake
 
 - [ ] Recording a bake requires a recipe, date, and actual count per size, with expiration prefilled as date plus shelf life and editable.
-- [ ] WHEN a bake is recorded, the batch stores total cost and per-size unit cost computed from ingredient prices at that moment, and a movement per size moves the counted units from Production to Kitchen. _Automated check:_ `|Σ (unit_cost × count_made) − batch_cost| ≤ ceil(total_units / 2)` cents, and a 1010-cent single-size bake of 20 units yields a unit cost of 51 (exact equality is not achievable for every yield; see [`data-model.md`](data-model.md)).
+- [ ] WHEN a bake is recorded, it creates a `bake` entry, the batch stores total cost and per-size unit cost computed from ingredient prices at that moment and references that entry, and a movement per size moves the counted units from Production to Kitchen. _Automated check:_ `|Σ (unit_cost × count_made) − batch_cost| ≤ ceil(total_units / 2)` cents, and a 1010-cent single-size bake of 20 units yields a unit cost of 51 (exact equality is not achievable for every yield; see [`data-model.md`](data-model.md)).
 - [ ] WHEN an ingredient price changes after a bake, that batch's stored costs are unchanged. _Automated check:_ non-negotiable 2.
 - [ ] WHEN all counts are zero, the bake is rejected.
+- [ ] Batch cost fields are immutable: no API route updates a batch, and a direct attempt to change a cost field is rejected. _Automated check:_ OpenAPI document exposes no PUT or PATCH on the batches resource; a test attempting a direct ORM update of a cost field is rejected (illustrative: a SQLAlchemy validator or a DB trigger — the lead chooses).
+- [ ] Undo of a bake is rejected if any of its units have already left Kitchen; a voided bake's batch is excluded from stock and recipe cost history. _Automated check:_ bake, move units out of Kitchen via a visit or manual operation, then assert undo of the bake is rejected.
 
 ## Locations
 
 - [ ] Kitchen, Sold, Waste, Sampled, and Production exist after migration and cannot be deleted, renamed, or deactivated through the API. _Automated check:_ attempting to deactivate a built-in location is rejected.
 - [ ] A user can create, rename, and deactivate a stand or a market. Deactivating a location with units on hand is rejected with the on-hand listed. There is no API route that deletes any location, built-in or user-created; user locations are deactivate-only. _Automated check:_ OpenAPI document contains no DELETE on the locations resource; ORM relationships from location to movement carry no cascading delete.
+- [ ] Location create accepts kind `stand` or `market` only; kind is immutable on update. _Automated check:_ a create request naming kind `production`, `kitchen`, `sold`, `waste`, or `sampled` returns 422; an update request attempting to change kind on any location returns 422.
 
 ## Ledger, stock, and FIFO
 
-- [ ] There is no API route that updates or deletes a movement, and no API route that updates (other than undo) or deletes a visit. Voiding via "undo last visit" is the only lifecycle change to a visit, and it never removes or edits the visit's original movements. _Automated check:_ OpenAPI document contains no PUT, PATCH, or DELETE on the movements resource and no PUT, PATCH, or DELETE on the visits resource — undo is its own endpoint, not a visit update; a test voids a visit and asserts its original movement rows are unchanged in the database; ORM relationships from visit and batch to movement carry no cascading delete.
+- [ ] There is no API route that updates or deletes a movement or an entry, and no API route that updates (other than undo) or deletes a visit or a batch. Voiding via undo is the only lifecycle change to an entry, and it never removes or edits the original entry's movements. _Automated check:_ OpenAPI document contains no PUT, PATCH, or DELETE on the movements, entries, visits, or batches resources — undo is its own endpoint, not an entry update; a test voids an entry and asserts its original movement rows are unchanged in the database; no ORM relationship among entry, visit, batch, location, and movement cascades deletes.
 - [ ] On-hand per location, recipe, size, and batch is computed from movements. _Automated check:_ after a sequence of movements, the stock endpoint equals an independent fold over the movement list.
 - [ ] Any removal of units from a location takes from the batch with the earliest expiration first and may span batches. Recipe, size, and count are the only batch-selection fields the user provides; a manual move additionally names its source and destination locations. _Automated check:_ two batches with different expirations; removing more than the older batch holds drains it first and takes the remainder from the newer.
 - [ ] WHEN a removal exceeds on-hand at that location, the whole request is rejected and the response names location, recipe, size, on-hand, and requested. No partial movement is written.
-- [ ] Saving a visit is one transaction: every constraint for that visit type (non-negativity, counted ≤ on-hand, tossed + pulled ≤ counted, returned + tossed ≤ taken, FIFO availability for every removal) is checked before any movement row is written, and a rejected visit writes no rows at all. _Automated check:_ a market visit with `returned + tossed > taken` is rejected and the movement table has zero rows referencing that visit, including the Kitchen-to-market `taken` movement.
+- [ ] Saving a visit is one transaction: every constraint for that visit type (non-negativity, counted ≤ on-hand, tossed + pulled ≤ counted, returned + tossed ≤ taken, FIFO availability for every removal) is checked before any movement row is written, and a rejected visit writes no rows at all. _Automated check:_ a market visit with `returned + tossed > taken` is rejected and the database has zero Visit, Entry, and Movement rows for that submission, including the Kitchen-to-market `taken` movement.
 
 ## Stand visit
 
@@ -55,7 +58,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 ## Profit
 
 - [ ] Every saved visit shows profit equal to revenue minus fee minus the frozen cost of units sold, wasted, and sampled during it, with those three costs on separate lines. _Automated check:_ a fixture with known batch costs, a mixed visit, and an asserted profit in cents.
-- [ ] The home screen lists past visits with date, location, revenue, and profit, newest first. A voided visit is listed as voided with no profit figure and is excluded from any profit or revenue totals.
+- [ ] The home screen lists past entries (bakes, visits, manual operations) with date and location, newest first, visits showing revenue and profit, and each non-voided entry with an undo action. A voided visit is listed as voided with no profit figure and is excluded from any profit or revenue totals.
 
 ## Home screen and expiration
 
@@ -65,7 +68,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 
 ## Corrections
 
-- [ ] Undo targets one original entry (a visit or a manual operation) and appends a reversal entry whose movements each carry `reverses_movement`, set to the exact original row's id, in reverse creation order, targeting the same batch as the original movement; the original entry is marked voided. The original movements remain in place. Stock afterward equals stock before the entry. _Automated check:_ stock snapshot before equals snapshot after undo.
+- [ ] Undo targets one original entry (a bake, a visit, or a manual operation) and appends a reversal entry whose movements each carry `reverses_movement`, set to the exact original row's id, in reverse creation order, targeting the same batch as the original movement; the original entry is marked voided. The original movements remain in place. Stock afterward equals stock before the entry. _Automated check:_ stock snapshot before equals snapshot after undo.
 - [ ] WHEN a later movement has already consumed, at the same inventory location (Kitchen, a stand, or a market), the batch a reversal into that location would need to restore, undo is rejected instead of driving on-hand negative there. Reversals whose source is Sold, Waste, or Sampled need no such check. _Automated check:_ a manual move drains a batch after a visit, then undo of that visit is rejected.
 - [ ] WHEN an entry is already voided, undo of it is rejected, and a duplicate manual removal cannot be used to bypass that: undoing the same movement row twice is rejected by the uniqueness of `reverses_movement`, not by matching quantity or batch. _Automated check:_ two identical manual removals (same recipe, size, quantity, and resulting batch) produce two distinct movement rows; undoing the first succeeds once and a second undo of that same row is rejected while the second removal's row is untouched.
 - [ ] WHEN undo is rejected for any reason, no reversal rows are written and the original entry remains unvoided. _Automated check:_ trigger a rejected undo and assert the movement table and the entry's voided flag are both unchanged.
