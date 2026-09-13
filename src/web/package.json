@@ -17,8 +17,7 @@
 		"typecheck": "tsc -b",
 		"lint": "biome ci .",
 		"test": "vitest run",
-		"preview": "vite preview",
-		"generate-types": "openapi-typescript"
+		"preview": "vite preview"
 	},
 	"dependencies": {
 		"react": "^19.2.8",
