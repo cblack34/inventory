@@ -24,7 +24,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 - [ ] WHEN an ingredient price changes after a bake, that batch's stored costs are unchanged. _Automated check:_ non-negotiable 2.
 - [ ] WHEN all counts are zero, the bake is rejected.
 - [ ] Batch cost fields are immutable: no API route updates a batch, and a direct attempt to change a cost field is rejected. _Automated check:_ OpenAPI document exposes no PUT or PATCH on the batches resource; a test attempting a direct ORM update of a cost field is rejected (illustrative: a SQLAlchemy validator or a DB trigger — the lead chooses).
-- [ ] Undo of a bake is rejected if any of its units have already left Kitchen; a voided bake's batch is excluded from stock and recipe cost history. _Automated check:_ bake, move units out of Kitchen via a visit or manual operation, then assert undo of the bake is rejected.
+- [ ] Undo of a bake follows the same current-balance rule as any entry: it is rejected only if reversing would drive the batch's Kitchen on-hand negative, so units that left and came back do not block it. A voided bake's batch is excluded from stock and recipe cost history. _Automated check:_ bake, move units out of Kitchen, assert undo is rejected; move them back, assert undo succeeds and stock matches the pre-bake snapshot.
 
 ## Locations
 
