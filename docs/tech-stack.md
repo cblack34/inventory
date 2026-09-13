@@ -12,7 +12,7 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 | Alembic | adopted | Real bakes will exist before the schema is final. Every schema change ships a migration. |
 | `uv` | adopted | Lockfile, fast, one tool for env and scripts. |
 | ruff (lint and format), pyright strict | adopted | Enforce in `make check`; don't restate rules in prose. |
-| pytest, httpx test client | adopted | Unit tests on the pure domain; a small set of API tests against a temporary SQLite file. |
+| pytest, `httpx2` test client | adopted | Unit tests on the pure domain; a small set of API tests against a temporary SQLite file. `httpx2` is the successor to `httpx` by the same author (BSD-3-Clause) and is what Starlette's `TestClient` imports and type-checks against; plain `httpx` is deprecated there. |
 | Signed session cookie via Starlette `SessionMiddleware` (`itsdangerous`), password from env | adopted | One shared password. No user table, no OAuth. Starlette ships the middleware and requires `itsdangerous`; its timestamp signer enforces the cookie lifetime on every request, so nothing is hand-rolled. |
 | `pydantic-settings` | adopted | Typed environment contract with fail-fast validation (missing password, short cookie secret). FastAPI's own settings guidance. |
 | `uvicorn` | adopted | The ASGI server FastAPI's documentation runs under. |
