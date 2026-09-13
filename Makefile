@@ -23,17 +23,13 @@ check-web: install-web
 # Verifies the committed types match a fresh regeneration, without mutating
 # the tracked file (a hand edit or a schema change both show up as a diff).
 check-types: install install-web
-	tmp=$$(mktemp -d) && \
+	tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
 	uv run python -m inventory.openapi > $$tmp/openapi.json && \
 	npx --prefix src/web openapi-typescript $$tmp/openapi.json -o $$tmp/types.ts && \
-	diff -u src/web/src/api/types.ts $$tmp/types.ts; \
-	status=$$?; \
-	rm -rf $$tmp; \
-	exit $$status
+	diff -u src/web/src/api/types.ts $$tmp/types.ts
 
 # Regenerates the committed types in place, to fix drift check-types finds.
 generate-types: install install-web
-	tmp=$$(mktemp -d) && \
+	tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
 	uv run python -m inventory.openapi > $$tmp/openapi.json && \
-	npx --prefix src/web openapi-typescript $$tmp/openapi.json -o src/web/src/api/types.ts && \
-	rm -rf $$tmp
+	npx --prefix src/web openapi-typescript $$tmp/openapi.json -o src/web/src/api/types.ts

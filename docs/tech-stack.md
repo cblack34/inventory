@@ -24,7 +24,7 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 | Vite, React, TypeScript strict | fixed | The user's daily stack. |
 | TanStack Query | adopted | Invalidation after posting a visit without hand-rolled state. |
 | React Router | adopted | Under ten routes. TanStack Router rejected as more setup than a handful of routes justify. |
-| openapi-typescript (types generated from the FastAPI OpenAPI document) | adopted | Pydantic is the single type source. Hand-written API types are forbidden. Regeneration is a script in `package.json` and its output is committed so `make check` can fail on drift. |
+| openapi-typescript (types generated from the FastAPI OpenAPI document) | adopted | Pydantic is the single type source. Hand-written API types are forbidden. Regeneration is `make generate-types`, the output is committed, and `make check` fails on drift via a non-mutating diff against a fresh generation. |
 | Tailwind CSS with shadcn/ui components | adopted | Copy-in components, mobile-first, no runtime UI library. Mantine was the alternative. |
 | react-hook-form with zod | adopted | Visit and bake forms are lists of number inputs; recipe, ingredient, location, and login forms mix text, date, and password fields. zod validates every form boundary. |
 | Biome (lint and format) | adopted | One tool. ESLint and Prettier rejected for a solo project. |
