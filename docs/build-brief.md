@@ -87,7 +87,7 @@ Open gates, none blocking implementation:
 
 - **Hosting target.** The user has not chosen between a generic VPS and an AWS Lightsail instance (a VM running Docker Compose with an attached block disk); the single-container plus persistent-volume shape works on both. AWS Lightsail Container Service and AWS App Runner are rejected: neither offers a persistent disk for SQLite. Decide before the first deployment.
 
-No external standards or licenses shape this project. No research doc is needed.
+No external standards shape this project; dependency licensing follows the policy in [`tech-stack.md`](tech-stack.md). No research doc is needed.
 
 ## Risks and failure modes
 

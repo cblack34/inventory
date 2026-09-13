@@ -63,7 +63,7 @@ Three leaf PRs into `slice/ci`: documentation amendments, the Python toolchain a
 
 ## Verification
 
-- `make check` exits zero locally and in CI on the spine head.
+- `make check` exits zero locally on the spine head, and in CI on each leaf PR's merge ref (CI never runs against the spine's own head; see workflow.md).
 - Editing the generated types file by hand makes `make check` fail.
 - Every stage AGENTS.md lists for `make check` is present and none is a no-op.
 - Repository definition-of-done commands remain mandatory; `make e2e` is deferred by the AGENTS.md amendment in this slice.
