@@ -38,7 +38,7 @@ Active topology: **feature spine with leaf PRs**. Branch names: spine `feature/<
 8. When final acceptance passes on the spine, sync it with `main`, resolve only trivial conflicts, and open the spine PR to `main`.
 9. Stop for the human to review and merge the spine PR.
 
-The agent never merges the spine to `main`, enables auto-merge, uses a merge queue, calls a merge API, automates the GitHub merge UI, pushes directly to `main`, or delegates any of those actions. When the spine PR is ready, the human physically pushes the merge button in GitHub. Do not run multiple spines for the same active scope unless the user approves that coordination cost.
+The agent never merges the spine to `main`, never enables auto-merge or a merge queue on `main`, never calls a merge API or automates the GitHub merge UI for a PR whose base is `main`, never pushes directly to `main`, and never delegates any of those actions. Squash-merging a clean leaf PR into the spine, as step 6 allows, is not covered by this prohibition. When the spine PR is ready, the human physically pushes the merge button in GitHub. Do not run multiple spines for the same active scope unless the user approves that coordination cost.
 
 ## Delegation
 
