@@ -59,7 +59,7 @@ The workflow doc mandates CI bootstrap as the first code-bearing delivery unit, 
 
 ## High-level approach
 
-Three leaf PRs into `slice/ci`: documentation amendments, the Python toolchain and CI workflow, then the frontend toolchain and type generation. Each leaf is reviewed by Copilot and merged into the spine by the implementation lead once green. The spine PR to `main` carries `Closes` references and stops for the owner to merge.
+Three leaf PRs into `slice/ci`: documentation amendments, the Python toolchain and CI workflow, then the frontend toolchain and type generation. Each leaf is reviewed per the workflow's reviewer ladder (Copilot, requested explicitly on leaf PRs; `review-pr` as fallback) and merged into the spine by the implementation lead once green. The spine PR to `main` carries `Closes` references and stops for the owner to merge.
 
 ## Verification
 
@@ -70,7 +70,7 @@ Three leaf PRs into `slice/ci`: documentation amendments, the Python toolchain a
 
 ## Risks and stop conditions
 
-- Copilot review does not post on a leaf PR: re-request once via the API, then fall back per workflow.md.
+- Copilot review does not post on a leaf PR within a reasonable wait after an explicit request: re-request once, then fall back per workflow.md.
 - A tool's current release conflicts with pyright strict or Biome defaults: fix configuration inside the leaf; stop if it requires a substitution from the tech-stack doc.
 
 ## Execution issues

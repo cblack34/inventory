@@ -47,9 +47,9 @@ Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-l
 
 ## Delivery governance
 
-- A human is the only authority that physically merges to `main` in GitHub. Agents never merge into `main`, enable auto-merge or a merge queue on `main`, automate the merge UI for `main`, or push directly to `main`, and never delegate any of those actions. Squash-merging a clean, reviewed leaf PR into the feature spine is the implementation lead's job and is not covered by this ban.
+- A human is the only authority that physically merges to `main` in GitHub. Agents never merge into `main`, enable auto-merge or a merge queue on `main`, automate the merge UI for `main`, or push directly to `main`, and never delegate any of those actions. Squash-merging a clean, reviewed leaf PR into the slice spine is the implementation lead's job and is not covered by this ban.
 - **Active topology:** per-slice spine with leaf PRs. Each approved slice gets a spine branch `slice/<name>` from `main`; work lands as leaf PRs `<name>/<unit>` into the spine. The implementation lead may squash-merge clean, reviewed, green leaf PRs into the spine; the spine PR to `main` requires human merge, and the next slice starts only after that merge.
-- Repository: `cblack34/inventory` on GitHub, public, default branch `main`. GitHub Copilot code review is available and is the first-choice reviewer. Fall back to `review-pr`, then a fresh review sub-agent, per [`docs/engineering/workflow.md`](docs/engineering/workflow.md). The author's own self-review never satisfies the independent gate.
+- Repository: `cblack34/inventory` on GitHub, public, default branch `main`. GitHub Copilot code review is the first-choice reviewer; it must be requested explicitly on leaf PRs, with the identifier and command recorded in [`docs/engineering/workflow.md`](docs/engineering/workflow.md), which also defines the fallbacks (`review-pr`, then a fresh review sub-agent). The author's own self-review never satisfies the independent gate.
 - Use a Conventional Commits PR title and the workflow's issue-closing rules; only a PR to `main` may carry `Closes #N`.
 
 ## Always / Ask first / Never

@@ -109,7 +109,7 @@ No external standards or licenses shape this project. No research doc is needed.
 
 _This is strategic guidance, not a required sequence. The implementation agent should evaluate it against the live repository and may reorder it when code, tests, or unforeseen constraints support a better plan._
 
-1. **Repository skeleton, tooling, CI, and the `make check` and `make e2e` targets.** Reason: every later PR is gated on them, and CI does not exist yet.
+1. **Repository skeleton, tooling, CI, and the `make check` target.** Reason: every later PR is gated on it, and CI does not exist yet. `make e2e` arrives with the login and home screens, the first thing a smoke test can drive.
 2. **Domain core: ledger, FIFO, batch cost, cost split, settlement, profit, as pure Python with tests.** Reason: it is the product and every screen depends on it; getting it right with no framework in the way is cheapest.
 3. **Persistence, migrations, built-in locations, and the API for ingredients, recipes, bakes, movements, and visits.** Reason: exposes the core; unlocks type generation.
 4. **Frontend: recipes, bake, visit, home, login, in whatever order lets the owners start entering real data soonest.** Reason: real data exposes model mistakes faster than tests.
