@@ -6,12 +6,12 @@ Domain concepts and the rules that bind them. Names and shapes are **illustrativ
 
 | Concept | Owned facts | Notes |
 | --- | --- | --- |
-| Ingredient | name, unit label (free text), current price per unit, active flag | Shared across recipes. No price history. An ingredient referenced by a recipe line cannot be deleted, only deactivated. |
+| Ingredient | name, unit label (free text), current price per unit, active flag | Shared across recipes. No price history. Ingredients are never deleted, only deactivated. |
 | Recipe | name, shelf life in days, ingredient lines (ingredient, quantity), sizes | Cost per size is computed on read, never stored. |
 | Size | recipe, name, portion weight, sale price, typical yield count | Price zero is legal and means "given away." No sample flag. |
 | Batch | recipe, bake entry, baked date, expires date, total cost, per-size unit cost, count made per size | Cost fields are written once at bake and never updated. The batch references its bake entry; if that entry is voided, the batch is excluded from stock, batch cost reports, and profit. |
 | Location | name, kind, active flag (stands and markets only) | Inventory kinds: `kitchen`, `stand`, `market`. Terminal kinds: `production`, `sold`, `waste`, `sampled`. Kitchen, Production, Sold, Waste, and Sampled are singleton built-ins created by migration; they cannot be deleted, renamed, or deactivated. Stands and markets are user rows. Terminal locations hold no stock and never appear in on-hand, stock views, or FIFO. Production is the source of every bake movement, so every movement has two real ends; its only outflow is to Kitchen. Sold, Waste, and Sampled gain units from visits and manual removals and lose units only through undo. An inactive stand or market rejects new visits and manual moves into it and is hidden from those forms; undo may still reverse into it, since the balance check in Corrections governs on-hand, not activity. |
-| Entry | kind (`bake`, `visit`, `manual`, or `reversal`), timestamp, voided flag | Every movement belongs to exactly one entry; there is no "movement with no entry" case. A `bake` entry is created when a batch is recorded and owns that batch's Production-to-Kitchen movement rows. A `manual` entry is one user operation from the manual movement form and may contain several movement rows, one per batch FIFO selected. A `reversal` entry is what undo appends; see Corrections. |
+| Entry | kind (`bake`, `visit`, `manual`, or `reversal`), timestamp, voided flag, reverses entry (required for `reversal`, null otherwise, unique) | Every movement belongs to exactly one entry; there is no "movement with no entry" case. A `bake` entry is created when a batch is recorded and owns that batch's Production-to-Kitchen movement rows. A `manual` entry is one user operation from the manual movement form and may contain several movement rows, one per batch FIFO selected. A `reversal` entry is what undo appends; it references the entry it undoes, so a reversal is auditable even when the original entry created no movements. See Corrections. |
 | Movement | entry, batch, size, from location, to location, quantity, timestamp, reverses movement (optional, unique) | Append-only. No update or delete. No route deletes an entry or a movement; voiding an entry is the only lifecycle change, and undo appends a reversal entry rather than removing any row. `reverses_movement` is set only on a reversal entry's rows and is unique, so a given original movement can be targeted by at most one reversal. |
 | Visit | entry, location, revenue, fee, expected_revenue_cents, notes | A visit is an entry with revenue, fee, expected_revenue_cents, and location; only stand and market locations have visits. For a stand visit, revenue is the cash collected and fee is zero. `expected_revenue_cents` is computed from each size's price at save time and stored on the visit, so a later price change never alters a saved visit's numbers. |
 
@@ -19,9 +19,11 @@ All money facts in the table above are integer cents and are named with a `_cent
 
 Derived, never stored: on-hand per (location, recipe, size, batch) equals the sum of movements in minus movements out. On-hand is defined only for inventory locations (Kitchen, stands, markets); Production, Sold, Waste, and Sampled are terminal and excluded from stock views, on-hand, and FIFO.
 
-## Batch cost and per-size split
+## Recipe cost estimate and batch cost split
 
-At bake time:
+On the recipe screen, before any bake exists: `recipe_cost = Σ over recipe lines (quantity × ingredient.current_price)`, `typical_total_weight = Σ over sizes (typical_yield_count × portion_weight)`, and estimated `unit_cost(size) = round(recipe_cost × portion_weight / typical_total_weight)`. This is a live estimate, recomputed on read, never stored. A recipe whose typical total weight is zero shows no estimate.
+
+At bake time, using actual counts:
 
 - `batch_cost = Σ over recipe lines (quantity × ingredient.current_price)`, rounded to cents once at the end.
 - `total_weight = Σ over sizes (count_made × portion_weight)`.
@@ -37,7 +39,7 @@ Any operation that removes units of a (location, recipe, size) takes from the ba
 
 ## Visit settlement
 
-Given the location's derived on-hand per (recipe, size) immediately before the visit, saving a visit is a single transaction: every constraint below for that visit type — non-negativity, counted ≤ on-hand, tossed + pulled ≤ counted, returned + tossed ≤ taken, and FIFO availability for every removal — is checked before any movement row is written. A rejected visit writes nothing, so a bad payload can never leave partial ledger rows or deplete Kitchen. Every entry that removes stock (visit, manual removal, undo) runs in a serialized write transaction (`BEGIN IMMEDIATE` on SQLite, with a busy timeout) so the availability read and the append happen under one write lock; two concurrent removals of the same stock cannot both pass validation.
+Given the location's derived on-hand per (recipe, size) immediately before the visit, saving a visit is a single transaction: every constraint below for that visit type — non-negativity, counted ≤ on-hand, tossed + pulled ≤ counted, returned + tossed ≤ taken, and FIFO availability for every removal — is checked before any movement row is written. A rejected visit writes nothing, so a bad payload can never leave partial ledger rows or deplete Kitchen. Every entry that moves stock out of any inventory location (visit, manual transfer, manual removal, undo) runs in a serialized write transaction (`BEGIN IMMEDIATE` on SQLite, with a busy timeout) so the availability read and the append happen under one write lock; two concurrent removals of the same stock cannot both pass validation.
 
 **Stand visit** input: counted per size, tossed per size, cash collected, pulled-to-kitchen per size, added-from-kitchen per size.
 

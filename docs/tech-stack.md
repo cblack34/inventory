@@ -36,7 +36,7 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 | One container: FastAPI serves the built Vite bundle as static files | adopted | No CORS, one deploy artifact. |
 | Docker Compose with a persistent volume for the SQLite file | adopted | Runs identically on a laptop and the host. |
 | Caddy for TLS on a VPS, or an AWS Lightsail instance (a VM running Docker Compose with an attached block disk) | open gate | User has not chosen between the two VM options. Lightsail Container Service and App Runner are both rejected: neither offers a persistent disk for SQLite. |
-| Nightly `sqlite3 .backup` copied to object storage by cron | adopted | One line of shell. Documented in deployment notes. |
+| Nightly `sqlite3 "$DB" ".backup '$DEST'"` then copy `$DEST` to object storage, by cron | adopted | One line of shell. Documented in deployment notes. |
 | GitHub Actions running `make check` and `make e2e` on every PR | adopted | Repository is `cblack34/inventory` on GitHub. |
 | `Makefile` as the single definition of verification commands | adopted | `AGENTS.md` and `acceptance.md` reference only `make check` and `make e2e`. |
 

@@ -59,7 +59,7 @@ Both exit zero on the completed spine. `make check` covers ruff, pyright, pytest
 
 ## Profit
 
-- [ ] Every saved visit shows profit equal to revenue minus fee minus the frozen cost of units sold, wasted, and sampled during it, with those three costs on separate lines. _Automated check:_ a fixture with known batch costs, a mixed visit, and an asserted profit in cents.
+- [ ] Every saved, non-voided visit shows profit equal to revenue minus fee minus the frozen cost of units sold, wasted, and sampled during it, with those three costs on separate lines. _Automated check:_ a fixture with known batch costs, a mixed visit, and an asserted profit in cents.
 - [ ] The home screen lists past entries (bakes, visits, manual operations) with date and location, newest first, visits showing revenue and profit, and each non-voided entry with an undo action. A voided visit is listed as voided with no profit figure and is excluded from any profit or revenue totals.
 
 ## Home screen and expiration
