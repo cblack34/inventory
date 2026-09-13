@@ -34,7 +34,7 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 | Choice | Status | Why |
 | --- | --- | --- |
 | One container: FastAPI serves the built Vite bundle as static files | adopted | No CORS, one deploy artifact. |
-| Docker Compose with a persistent volume for the SQLite file | adopted | Runs identically on a laptop and the host. |
+| Docker Compose with a persistent volume for the SQLite file | adopted | Runs identically on a laptop and the host. The image installs the `sqlite3` CLI (slim Python images ship the library but not the binary); `DB` is an environment variable holding the absolute path of the database file on the named volume; Compose bind-mounts a host `./backups` directory at `/backups`. |
 | Caddy for TLS on a VPS, or on an AWS Lightsail instance (a VM running Docker Compose with an attached block disk); either way Caddy terminates HTTPS, which `Secure` cookies require | open gate | User has not chosen between the two VM options. Lightsail Container Service and App Runner are both rejected: neither offers a persistent disk for SQLite. |
 | Nightly host cron runs `docker compose exec -T app sh -c 'sqlite3 "$DB" ".backup /backups/inventory.db"'` with `/backups` bind-mounted from the host, then uploads that host file to object storage. `-T` disables the TTY cron lacks, and the single quotes defer `$DB` expansion to the container where it is defined | adopted | The `sqlite3` CLI and the database path live in the container; cron and object-storage credentials live on the host. The bind mount is the boundary. |
 | GitHub Actions running `make check` and `make e2e` on every PR | adopted | Repository is `cblack34/inventory` on GitHub. |
