@@ -6,7 +6,7 @@ Instructions for the AI agent that plans and builds this project. This file is t
 
 ## What this is
 
-A two-person web app for a cottage-law craft snack business. It costs recipes, tracks baked batches as they move between the kitchen, honor-system farm stands, and markets, and reports profit per market or stand visit. Backend: Python, FastAPI, Pydantic, SQLAlchemy, SQLite, managed with `uv`. Frontend: Vite, React, TypeScript. One container serves both. Lockfiles: `uv.lock` and `web/package-lock.json` (illustrative paths; the lead chooses the layout). Stack detail and rationale: [`docs/tech-stack.md`](docs/tech-stack.md).
+A two-person web app for a cottage-law craft snack business. It costs recipes, tracks baked batches as they move between the kitchen, honor-system farm stands, and markets, and reports profit per market or stand visit. Backend: Python, FastAPI, Pydantic, SQLAlchemy, SQLite, managed with `uv`. Frontend: Vite, React, TypeScript. One container serves both. Layout: root `pyproject.toml` and `uv.lock` with the Python package at `src/inventory/` and tests at `tests/`; the frontend is a separate npm project at `src/web/` with its own `package-lock.json`. Stack detail and rationale: [`docs/tech-stack.md`](docs/tech-stack.md).
 
 ## Prime directive
 
@@ -25,7 +25,7 @@ make check
 make e2e
 ```
 
-`make check` must run, in one invocation: Python lint and format check (ruff), Python type check (pyright), Python tests (pytest), frontend lint and format check (Biome), frontend type check (tsc), frontend unit tests (vitest), the production frontend build, and regenerating the frontend API types from the OpenAPI schema with a failure if the committed output differs. `make e2e` must build the frontend, start the API against a temporary SQLite file, and run the Playwright smoke test. Both must exit non-zero on any failure. The `Makefile` is the single place those underlying commands are defined; it does not exist until the CI-bootstrap PR ships it as the repository's first code-bearing delivery unit (see [`docs/engineering/workflow.md`](docs/engineering/workflow.md)), so a docs-only PR before that point cannot run it. From the CI-bootstrap PR onward, both targets must define every stage above, but a stage whose real inputs do not exist yet — no OpenAPI schema to generate types from, no login or home screen for the smoke test — may pass against a minimal placeholder until the slice that introduces those inputs replaces it. No stage may be silently skipped or removed, and a placeholder must never survive the slice that makes the real stage possible.
+`make check` must run, in one invocation: Python lint and format check (ruff), Python type check (pyright), Python tests (pytest), frontend lint and format check (Biome), frontend type check (tsc), frontend unit tests (vitest), the production frontend build, and regenerating the frontend API types from the OpenAPI schema with a failure if the committed output differs. `make e2e` must build the frontend, start the API against a temporary SQLite file, and run the Playwright smoke test. Both must exit non-zero on any failure. The `Makefile` is the single place those underlying commands are defined. `make check` ships in the CI-bootstrap slice (see [`docs/engineering/workflow.md`](docs/engineering/workflow.md)) with every stage above; the type-generation stage may run against the minimal OpenAPI document that exists at that point. `make e2e` does not exist until the slice that delivers the login and home screens, because a Playwright stage with nothing real to drive would cost CI minutes for no evidence; until then `make check` alone is the definition of done and CI runs only it, and the slice that introduces login and home must ship `make e2e` and add it to CI. Within a slice, a leaf PR may carry a subset of the stages when a later leaf of the same slice adds the rest; the spine PR to `main` must carry every stage that exists. No stage may be silently skipped or removed once it exists.
 
 Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-level checks show progress but never replace final acceptance.
 
@@ -47,9 +47,9 @@ Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-l
 
 ## Delivery governance
 
-- A human is the only authority that physically merges to `main` in GitHub. Agents never merge into `main`, enable auto-merge or a merge queue on `main`, automate the merge UI for `main`, or push directly to `main`, and never delegate any of those actions. Squash-merging a clean, reviewed leaf PR into the feature spine is the implementation lead's job and is not covered by this ban.
-- **Active topology:** feature spine with leaf PRs. The implementation lead may squash-merge clean, reviewed, green leaf PRs into the spine; the final spine PR to `main` requires human merge.
-- Repository: `cblack34/inventory` on GitHub, public, default branch `main`. GitHub Copilot code review is available and is the first-choice reviewer. Fall back to `review-pr`, then a fresh review sub-agent, per [`docs/engineering/workflow.md`](docs/engineering/workflow.md). The author's own self-review never satisfies the independent gate.
+- A human is the only authority that physically merges to `main` in GitHub. Agents never merge into `main`, enable auto-merge or a merge queue on `main`, automate the merge UI for `main`, or push directly to `main`, and never delegate any of those actions. Squash-merging a clean, reviewed leaf PR into the slice spine is the implementation lead's job and is not covered by this ban.
+- **Active topology:** per-slice spine with leaf PRs. Each approved slice gets a spine branch `slice/<name>` from `main`; work lands as leaf PRs `<name>/<unit>` into the spine. The implementation lead may squash-merge clean, reviewed, green leaf PRs into the spine; the spine PR to `main` requires human merge, and the next slice starts only after that merge.
+- Repository: `cblack34/inventory` on GitHub, public, default branch `main`. GitHub Copilot code review is the first-choice reviewer; it must be requested explicitly on leaf PRs, with the identifier and command recorded in [`docs/engineering/workflow.md`](docs/engineering/workflow.md), which also defines the fallbacks (`review-pr`, then a fresh review sub-agent). The author's own self-review never satisfies the independent gate.
 - Use a Conventional Commits PR title and the workflow's issue-closing rules; only a PR to `main` may carry `Closes #N`.
 
 ## Always / Ask first / Never
@@ -60,7 +60,7 @@ Every item in [`docs/acceptance.md`](docs/acceptance.md) must also pass. Slice-l
 
 ## Dependencies
 
-Prefer existing or standard-library capabilities. The adopted set is in [`docs/tech-stack.md`](docs/tech-stack.md). Adding anything else at runtime requires the user's approval; dev-only tooling that supports an adopted choice is at the lead's discretion.
+Prefer a well-maintained library over hand-rolled code for anything security-sensitive or fiddly (signing, sessions, settings parsing); a maintained library patches bugs and vulnerabilities before a two-person project would notice them. The standard library counts as maintained. The adopted set and the license policy are in [`docs/tech-stack.md`](docs/tech-stack.md). Adding anything else at runtime requires the user's approval; dev-only tooling that supports an adopted choice is at the lead's discretion.
 
 ## Code quality
 
