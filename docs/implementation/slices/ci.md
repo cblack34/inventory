@@ -87,7 +87,7 @@ GitHub issues are the WIP tracker and source of task-level detail.
 
 - **Topology:** per-slice spine with leaf PRs.
 - **Branch or spine:** `slice/ci`; leaves `ci/docs`, `ci/python`, `ci/web`.
-- **Final PR:** to be added in the delivery record.
+- **Final PR:** [#8](https://github.com/cblack34/inventory/pull/8).
 - **Human merge gate:** Only the human may physically merge the final PR to `main`. Agents must stop when it is ready.
 
 ## Amendments
@@ -98,9 +98,9 @@ None.
 
 Complete once when the final PR is ready for human merge. Do not use this section for WIP status.
 
-- **Outcome:** pending
-- **Verification:** pending
-- **Deviations:** pending
-- **Unresolved gates or risks:** pending
-- **Final PR:** pending
-- **Merge state:** pending
+- **Outcome:** Delivered 2026-09-13. `make check` defines every stage in the AGENTS.md definition of done except the deferred e2e stage, runs green from a clean environment, and gates every pull request through GitHub Actions. Repository layout, `/api/v1` health route, and the type-generation drift check are in place. The build-pack amendments approved for this slice are recorded in AGENTS.md, build-brief.md, tech-stack.md, acceptance.md, and workflow.md.
+- **Verification:** `rm -rf .venv src/web/node_modules && make check` exit 0 on spine head 6e99f5b (ruff, format, pyright 0 errors, 4 pytest, Biome, tsc, 2 vitest, build, types diff clean). Leaf evidence on [#5](https://github.com/cblack34/inventory/pull/5), [#6](https://github.com/cblack34/inventory/pull/6), [#7](https://github.com/cblack34/inventory/pull/7): green CI at each final head; Copilot zero-comment head-matched passes on #5 and #7; independent verification review with zero findings on #6; deliberate-failure checks (unformatted Python, hand-edited generated types, Biome violation) each fail `make check`. Issues [#2](https://github.com/cblack34/inventory/issues/2), [#3](https://github.com/cblack34/inventory/issues/3), [#4](https://github.com/cblack34/inventory/issues/4) carry the detailed trail.
+- **Deviations:** `httpx2` replaced `httpx` as the test client because Starlette 1.6 imports it and deprecates the plain package. The review loop on #6 ran one cycle past the three-cycle bound after the fallback reviewer found `uv sync --frozen` admitted a stale lock; #7 received one post-rebase pass beyond its third cycle with no code of its own changed. Copilot is not auto-requested on leaf PRs because the `protect-default` ruleset targets only `main`; it was requested by hand with the bot identifier now recorded in workflow.md.
+- **Unresolved gates or risks:** Hosting target remains open (unchanged by this slice). Owner may extend the `protect-default` ruleset to `slice/*` so leaf PRs get automatic Copilot review.
+- **Final PR:** [#8](https://github.com/cblack34/inventory/pull/8).
+- **Merge state:** Ready for the human to merge; agents do not merge to `main`.
