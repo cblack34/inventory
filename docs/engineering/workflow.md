@@ -24,21 +24,21 @@ When evidence invalidates the plan, stop affected work, explain the impact, and 
 
 ## Delivery topology
 
-Active topology: **feature spine with leaf PRs**. Branch names: spine `feature/<scope>`, leaf `<scope>/<short-unit>` (a leaf never shares a prefix path with its spine, since Git cannot hold both `feature/x` and `feature/x/y`).
+Active topology: **per-slice spine with leaf PRs**. Every approved slice merges to `main` on its own, so `main` advances many times while the MVP is built. Branch names: spine `slice/<name>`, leaf `<name>/<short-unit>` (a leaf never shares a prefix path with its spine, since Git cannot hold both `slice/x` and `slice/x/y`).
 
-### Feature spine with leaf PRs
+### Per-slice spine with leaf PRs
 
-1. Create one feature spine from current `main` for the user-approved active scope.
-2. Create each leaf branch from the current spine for a tactical unit chosen by the implementation lead.
+1. Create the slice spine `slice/<name>` from current `main` when the human approves the slice.
+2. Create each leaf branch from the current spine for a tactical unit chosen by the implementation lead. A slice usually has several leaves; a slice small enough for one unit may have one.
 3. Implement the unit, tests, and affected docs; run self-verification and self-review.
 4. Sync the leaf with the spine; stop on a non-trivial conflict.
 5. Open a leaf PR to the spine, run the review loop, and require green CI.
 6. The implementation lead may **squash-merge the clean leaf PR into the spine** and confirm the spine remains green.
 7. Replan and repeat leaves as needed; leaf order remains tactical and adaptable.
-8. When final acceptance passes on the spine, sync it with `main`, resolve only trivial conflicts, and open the spine PR to `main`.
-9. Stop for the human to review and merge the spine PR.
+8. When the slice's verification passes on the spine, sync it with `main`, resolve only trivial conflicts, and open the spine PR to `main` with the slice's `Closes` references.
+9. Stop for the human to review and merge the spine PR. Propose the next slice only after that merge lands.
 
-The agent never merges the spine to `main`, never enables auto-merge or a merge queue on `main`, never calls a merge API or automates the GitHub merge UI for a PR whose base is `main`, never pushes directly to `main`, and never delegates any of those actions. Squash-merging a clean leaf PR into the spine, as step 6 allows, is not covered by this prohibition. When the spine PR is ready, the human physically pushes the merge button in GitHub. Do not run multiple spines for the same active scope unless the user approves that coordination cost.
+The agent never merges the spine to `main`, never enables auto-merge or a merge queue on `main`, never calls a merge API or automates the GitHub merge UI for a PR whose base is `main`, never pushes directly to `main`, and never delegates any of those actions. Squash-merging a clean leaf PR into the spine, as step 6 allows, is not covered by this prohibition. When the spine PR is ready, the human physically pushes the merge button in GitHub. One spine is active at a time.
 
 ## Delegation
 
@@ -87,7 +87,7 @@ The **address → reply → resolve** flow is mandatory regardless of reviewer:
 
 CI must run the `AGENTS.md` verification commands on every code-bearing PR. If the repository lacks CI, the implementation lead must propose CI bootstrap as the first code-bearing delivery unit. That initial PR is gated by complete local verification and review because CI does not yet exist; every later code-bearing merge requires green CI. Keep CI minimal and do not spend CI time on artifacts nobody consumes. Branch-protection required-status enforcement (a required `ci` check) is available here — the repository is public, and GitHub Free supports required status checks on public repos — so once CI exists, ask the owner to enable it; until then, “never integrate on red CI” remains mandatory agent discipline even without a server-side gate.
 
-CI is GitHub Actions, one workflow at `.github/workflows/ci.yml`, running `make check` and `make e2e` on every pull request, including each leaf PR into the spine. The workflow's `pull_request` trigger runs against the merge ref, so no CI run ever exists against the spine's own head; confirming the spine “remains green” in step 6 above means running `make check` and `make e2e` locally against the updated spine, not relying on a CI run taken against it. No other jobs until something consumes their output.
+CI is GitHub Actions, one workflow at `.github/workflows/ci.yml`, running `make check` on every pull request, including each leaf PR into the spine, and adding `make e2e` in the slice that creates it (see the definition of done in `AGENTS.md`). The workflow's `pull_request` trigger runs against the merge ref, so no CI run ever exists against the spine's own head; confirming the spine “remains green” in step 6 above means running the definition-of-done commands locally against the updated spine, not relying on a CI run taken against it. No other jobs until something consumes their output.
 
 ## Final verification
 

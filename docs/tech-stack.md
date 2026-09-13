@@ -13,7 +13,9 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 | `uv` | adopted | Lockfile, fast, one tool for env and scripts. |
 | ruff (lint and format), pyright strict | adopted | Enforce in `make check`; don't restate rules in prose. |
 | pytest, httpx test client | adopted | Unit tests on the pure domain; a small set of API tests against a temporary SQLite file. |
-| Signed session cookie, password from env | adopted | One shared password. No user table, no OAuth. |
+| Signed session cookie via Starlette `SessionMiddleware` (`itsdangerous`), password from env | adopted | One shared password. No user table, no OAuth. Starlette ships the middleware and requires `itsdangerous`; its timestamp signer enforces the cookie lifetime on every request, so nothing is hand-rolled. |
+| `pydantic-settings` | adopted | Typed environment contract with fail-fast validation (missing password, short cookie secret). FastAPI's own settings guidance. |
+| `uvicorn` | adopted | The ASGI server FastAPI's documentation runs under. |
 
 ## Frontend
 
@@ -27,7 +29,7 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 | react-hook-form with zod | adopted | Visit and bake forms are lists of number inputs; recipe, ingredient, location, and login forms mix text, date, and password fields. zod validates every form boundary. |
 | Biome (lint and format) | adopted | One tool. ESLint and Prettier rejected for a solo project. |
 | vitest | adopted | For the little pure frontend logic that exists. No component-test scaffolding. |
-| Playwright | adopted | Exactly one smoke test: log in, load home. Run by `make e2e`. |
+| Playwright | adopted | Exactly one smoke test: log in, load home. Run by `make e2e`, which arrives with the login-and-home slice rather than the CI bootstrap. |
 
 ## Shipping
 
@@ -37,9 +39,19 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 | Docker Compose with a persistent volume for the SQLite file | adopted | Runs identically on a laptop and the host. The image installs the `sqlite3` CLI (slim Python images ship the library but not the binary); `DB` is an environment variable holding the absolute path of the database file on the named volume; Compose bind-mounts a host `./backups` directory at `/backups`. |
 | Caddy for TLS on a VPS, or on an AWS Lightsail instance (a VM running Docker Compose with an attached block disk); either way Caddy terminates HTTPS, which `Secure` cookies require | open gate | User has not chosen between the two VM options. Lightsail Container Service and App Runner are both rejected: neither offers a persistent disk for SQLite. |
 | Nightly host cron runs `cd /srv/inventory && docker compose exec -T app sh -c 'sqlite3 "$DB" ".backup /backups/inventory.db"'` (the project directory holding `compose.yaml` and `.env`; deployment notes fix the path) with `/backups` bind-mounted from the host, then uploads that host file to object storage. `-T` disables the TTY cron lacks, and the single quotes defer `$DB` expansion to the container where it is defined | adopted | The `sqlite3` CLI and the database path live in the container; cron and object-storage credentials live on the host. The bind mount is the boundary. |
-| GitHub Actions running `make check` and `make e2e` on every PR | adopted | Repository is `cblack34/inventory` on GitHub. |
+| GitHub Actions running `make check` on every PR, plus `make e2e` once it exists | adopted | Repository is `cblack34/inventory` on GitHub. |
 | `Makefile` as the single definition of verification commands | adopted | `AGENTS.md` and `acceptance.md` reference only `make check` and `make e2e`. |
 
 ## Dependency policy
 
-Runtime dependencies are the rows above, plus the packages an adopted row's own registry or official documentation requires in order to work — for example `radix-ui`, `class-variance-authority`, `clsx`, and `tailwind-merge` for shadcn/ui components, and `@hookform/resolvers` for react-hook-form's zod resolver. A row pre-approves its required companions; the lead records them in the lockfile without asking. Adding anything else at runtime requires the user's approval. Dev-only tooling that directly supports an adopted row (a Biome plugin, a pytest plugin) is at the lead's discretion. Prefer the standard library and existing dependencies; a few lines of code beat a new package.
+Runtime dependencies are the rows above, plus the packages an adopted row's own registry or official documentation requires in order to work — for example `radix-ui`, `class-variance-authority`, `clsx`, and `tailwind-merge` for shadcn/ui components, and `@hookform/resolvers` for react-hook-form's zod resolver. A row pre-approves its required companions; the lead records them in the lockfile without asking. Adding anything else at runtime requires the user's approval. Dev-only tooling that directly supports an adopted row (a Biome plugin, a pytest plugin) is at the lead's discretion. Prefer a well-maintained library over hand-rolled code for anything security-sensitive or fiddly; prefer the standard library and existing dependencies over a new package for a few lines of plain logic.
+
+## License policy
+
+The application is deployed as a service and its source is not distributed, but the owner does not want a dependency that could obligate publishing this code.
+
+- **Fine without asking:** MIT, BSD (2- and 3-clause), Apache-2.0, ISC, PSF, Unlicense, public domain, LGPL, MPL-2.0.
+- **Ask first:** GPL (any version).
+- **Never:** AGPL, SSPL, and any license that conditions use on publishing the calling code.
+
+Enforced by hand: the lead checks the license when proposing a dependency and records it in the approval. No license scanner runs in `make check`; add one only if the dependency count makes hand checks unreliable. Every row adopted above is MIT, BSD, Apache-2.0, ISC, or public domain.
