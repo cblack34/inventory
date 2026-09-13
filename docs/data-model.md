@@ -6,7 +6,7 @@ Domain concepts and the rules that bind them. Names and shapes are **illustrativ
 
 | Concept | Owned facts | Notes |
 | --- | --- | --- |
-| Ingredient | name, unit label (free text), current price per unit | Shared across recipes. No price history. |
+| Ingredient | name, unit label (free text), current price per unit, active flag | Shared across recipes. No price history. An ingredient referenced by a recipe line cannot be deleted, only deactivated. |
 | Recipe | name, shelf life in days, ingredient lines (ingredient, quantity), sizes | Cost per size is computed on read, never stored. |
 | Size | recipe, name, portion weight, sale price, typical yield count | Price zero is legal and means "given away." No sample flag. |
 | Batch | recipe, bake entry, baked date, expires date, total cost, per-size unit cost, count made per size | Cost fields are written once at bake and never updated. The batch references its bake entry; if that entry is voided, the batch is excluded from stock and recipe cost history. |
