@@ -79,7 +79,7 @@ Adopted decisions, all made by the user in discussion:
 Assumptions the implementation lead may rely on unless the user says otherwise:
 
 - Expiring-soon horizon is seven days. It matches the weekly stand cadence.
-- Units pulled from a stand go to the kitchen, and units taken to a market come from the kitchen. Visit forms only offer the kitchen as the other end of a transfer; the manual movement form allows any active inventory location except a market as destination; undo reversals are exempt from both limits.
+- Units pulled from a stand go to the kitchen, and units taken to a market come from the kitchen. Visit forms only offer the kitchen as the other end of a transfer; the manual movement form transfers to any active inventory location except a market, or removes to Waste, Sold, or Sampled; undo reversals are exempt from the transfer limits.
 - A market's on-hand during a visit is modeled as stock at the market location, moved there when the visit is recorded and moved back on return. Nothing is left at a market between visits; a manual movement can never create market carry-over because its destination may not be a market (see [`data-model.md`](data-model.md)).
 
 Open gates, none blocking implementation:
