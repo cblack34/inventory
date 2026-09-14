@@ -17,7 +17,7 @@ fields end in `_cents`, matching `inventory.db.models`.
 from datetime import date, datetime
 from typing import Annotated, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from inventory.db.models import Batch
 from inventory.db.models import Visit as VisitRow
@@ -46,15 +46,21 @@ class BatchCreate(BaseModel):
     # needs the carve-out.
     baked: date = Field(strict=False)
     expires: date = Field(strict=False)
-    counts: list[BakeCountItem] = Field(default_factory=list[BakeCountItem])
+    counts: list[BakeCountItem] = Field(min_length=1)
+
+    @field_validator("counts")
+    @classmethod
+    def _reject_duplicate_sizes(cls, counts: list[BakeCountItem]) -> list[BakeCountItem]:
+        seen: set[int] = set()
+        for item in counts:
+            if item.size_id in seen:
+                msg = f"size_id {item.size_id} appears more than once in counts"
+                raise ValueError(msg)
+            seen.add(item.size_id)
+        return counts
 
     def counts_by_size(self) -> dict[int, int]:
-        """`counts` as `inventory.db.writes.BakeRequest` wants it.
-
-        A repeated `size_id` keeps its last occurrence; nothing here
-        rejects a duplicate, since the domain layer already rejects an
-        all-zero (or empty) result with `ZeroWeightError`.
-        """
+        """`counts` as `BakeRequest` wants it; size ids are unique by validation."""
         return {item.size_id: item.count for item in self.counts}
 
 
@@ -99,7 +105,7 @@ class MovementCreate(BaseModel):
     from_location_id: int
     to_location_id: int
     size_id: int
-    quantity: int = Field(ge=0)
+    quantity: int = Field(ge=1)
 
 
 # --- Reversals ------------------------------------------------------------------

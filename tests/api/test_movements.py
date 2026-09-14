@@ -8,7 +8,14 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from tests.api.ledger_helpers import bake, create_location, create_recipe, kitchen_id, move
+from tests.api.ledger_helpers import (
+    bake,
+    builtin_location_id,
+    create_location,
+    create_recipe,
+    kitchen_id,
+    move,
+)
 from tests.api.probes import login
 
 
@@ -160,3 +167,23 @@ def test_strict_int_rejects_string_and_float_quantity(client: TestClient) -> Non
 
     assert as_string.status_code == 422
     assert as_float.status_code == 422
+
+
+def test_zero_quantity_is_rejected_by_the_schema(client: TestClient) -> None:
+    login(client)
+    _recipe, size_id = _recipe_and_size(client)
+    kitchen = kitchen_id(client)
+    waste = builtin_location_id(client, "waste")
+
+    response = client.post(
+        "/api/v1/movements",
+        json={
+            "from_location_id": kitchen,
+            "to_location_id": waste,
+            "size_id": size_id,
+            "quantity": 0,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"]

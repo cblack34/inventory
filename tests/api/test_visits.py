@@ -348,9 +348,10 @@ def test_saved_visit_expected_revenue_unchanged_after_price_change_and_positive_
     assert visit.json()["expected_revenue_cents"] == 300
     assert visit.json()["difference_cents"] == 100
 
-    client.patch(
+    price_change = client.patch(
         f"/api/v1/recipes/{recipe['id']}", json={"sizes": [{"id": size_id, "price_cents": 999}]}
     )
+    assert price_change.status_code == 200
 
     reread = client.get(f"/api/v1/visits/{entry_id}")
     assert reread.status_code == 200

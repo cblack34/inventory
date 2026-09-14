@@ -152,3 +152,22 @@ def test_ingredient_price_change_after_bake_leaves_batch_unchanged(client: TestC
     reread = client.get(f"/api/v1/batches/{batch['id']}")
     assert reread.status_code == 200
     assert reread.json() == batch
+
+
+def test_duplicate_size_in_counts_is_rejected(client: TestClient) -> None:
+    login(client)
+    recipe = _three_size_recipe(client)
+    size_id = recipe["sizes"][0]["id"]
+
+    response = client.post(
+        "/api/v1/batches",
+        json={
+            "recipe_id": recipe["id"],
+            "baked": "2026-01-01",
+            "expires": "2026-01-10",
+            "counts": [{"size_id": size_id, "count": 5}, {"size_id": size_id, "count": 0}],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"]

@@ -333,7 +333,7 @@ export interface components {
              */
             expires: string;
             /** Counts */
-            counts?: components["schemas"]["BakeCountItem"][];
+            counts: components["schemas"]["BakeCountItem"][];
         };
         /** BatchRead */
         BatchRead: {
