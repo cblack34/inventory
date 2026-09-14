@@ -18,8 +18,7 @@ def test_foreign_keys_are_enforced(engine: Engine) -> None:
     with engine.begin() as conn, pytest.raises(IntegrityError):
         conn.execute(
             text(
-                "INSERT INTO recipe_line (recipe_id, ingredient_id, quantity) "
-                "VALUES (999, 999, 1)"
+                "INSERT INTO recipe_line (recipe_id, ingredient_id, quantity) VALUES (999, 999, 1)"
             )
         )
 
