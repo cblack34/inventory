@@ -7,6 +7,8 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pydantic>=2,<3",
+    "sqlalchemy>=2",
+    "alembic",
 ]
 
 [dependency-groups]
@@ -38,6 +40,11 @@ select = [
     "E", "F", "I", "UP", "B",
     "C90", "PL", "SIM", "RET", "ARG", "C4", "PERF", "ERA", "T20", "N", "RUF",
 ]
+
+[tool.ruff.lint.isort]
+# A top-level alembic/ directory would otherwise make ruff treat the alembic
+# library as first-party and split it from the other third-party imports.
+known-third-party = ["alembic"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
