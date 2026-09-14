@@ -75,6 +75,14 @@ class AlreadyVoidedEntryError(DomainError):
         super().__init__(f"entry {entry_id} is already voided")
 
 
+class CannotUndoReversalError(DomainError):
+    """Undo was requested for a reversal entry; only bake, visit, and manual entries undo."""
+
+    def __init__(self, *, entry_id: int) -> None:
+        self.entry_id = entry_id
+        super().__init__(f"entry {entry_id} is a reversal and cannot itself be undone")
+
+
 def _batch_cost_cents(session: Session, recipe_id: int) -> int:
     lines = session.execute(
         select(RecipeLine.quantity, Ingredient.current_price_cents)
@@ -264,14 +272,17 @@ def _to_ledger_movement(row: MovementRow) -> LedgerMovement:
 def undo(session: Session, *, entry_id: int, now: datetime) -> int:
     """Undo `entry_id`: append a reversal entry, or raise before writing anything.
 
-    Rejects an already-voided entry with `AlreadyVoidedEntryError`
-    before touching anything else. Otherwise plans one reversal per
+    Rejects a reversal entry (`CannotUndoReversalError`) and an
+    already-voided entry (`AlreadyVoidedEntryError`) before touching
+    anything else. Otherwise plans one reversal per
     movement the original entry created (`domain.ledger.plan_reversal`,
     reverse creation order, sequential balance check) and raises
     `InsufficientStock` untouched if any reversal would drive an
     inventory-location source negative.
     """
     original_entry = session.get_one(Entry, entry_id)
+    if original_entry.kind == "reversal":
+        raise CannotUndoReversalError(entry_id=entry_id)
     if original_entry.voided:
         raise AlreadyVoidedEntryError(entry_id=entry_id)
 

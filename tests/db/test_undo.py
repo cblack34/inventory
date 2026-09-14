@@ -19,6 +19,7 @@ from inventory.db.stock import load_stock
 from inventory.db.writes import (
     AlreadyVoidedEntryError,
     BakeRequest,
+    CannotUndoReversalError,
     ManualMove,
     record_bake,
     record_manual_move,
@@ -117,6 +118,32 @@ def test_undo_of_an_already_voided_entry_is_rejected(
 
     with Session(engine) as session, pytest.raises(AlreadyVoidedEntryError):
         undo(session, entry_id=toss_entry_id, now=_NOW)
+
+
+def test_undo_of_a_reversal_entry_is_rejected(
+    engine: Engine, single_size_recipe: SingleSizeRecipe
+) -> None:
+    with Session(engine) as session:
+        _bake_ten_units(session, single_size_recipe)
+        session.commit()
+
+    with Session(engine) as session:
+        locations = load_builtin_locations(session).locations
+        toss_entry_id = record_manual_move(
+            session,
+            ManualMove(
+                from_location_id=locations.kitchen_id,
+                to_location_id=locations.waste_id,
+                size_id=single_size_recipe.size_id,
+                quantity=3,
+            ),
+            now=_NOW,
+        )
+        reversal_entry_id = undo(session, entry_id=toss_entry_id, now=_NOW)
+        session.commit()
+
+    with Session(engine) as session, pytest.raises(CannotUndoReversalError):
+        undo(session, entry_id=reversal_entry_id, now=_NOW)
 
 
 def test_two_identical_removals_produce_distinct_rows_and_undo_of_one_leaves_the_other(
