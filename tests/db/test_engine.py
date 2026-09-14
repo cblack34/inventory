@@ -13,6 +13,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 
+from inventory.db.engine import write_engine
+
 
 def test_foreign_keys_are_enforced(engine: Engine) -> None:
     with engine.begin() as conn, pytest.raises(IntegrityError):
@@ -29,14 +31,26 @@ def test_busy_timeout_is_set(engine: Engine) -> None:
         assert conn.execute(text("PRAGMA busy_timeout")).scalar_one() == 5000
 
 
-def test_begin_takes_the_write_lock_before_any_write(engine: Engine, db_path: Path) -> None:
-    # A transaction that has only begun, with no write statement yet, must
-    # already hold the reserved lock so a second writer cannot begin. A
-    # plain `BEGIN` would defer the lock and let both proceed.
-    with engine.begin():
+def test_write_engine_takes_the_write_lock_before_any_write(engine: Engine, db_path: Path) -> None:
+    # A write transaction that has only begun, with no write statement yet,
+    # must already hold the reserved lock so a second writer cannot begin.
+    with write_engine(engine).begin():
         other = sqlite3.connect(str(db_path), timeout=0.1)
         try:
             with pytest.raises(sqlite3.OperationalError, match="locked"):
                 other.execute("BEGIN IMMEDIATE")
+        finally:
+            other.close()
+
+
+def test_read_transactions_do_not_take_the_write_lock(engine: Engine, db_path: Path) -> None:
+    # A plain transaction reading the database must leave the reserved lock
+    # free, so a writer can begin while a reader is open.
+    with engine.begin() as conn:
+        conn.execute(text("SELECT count(*) FROM location")).scalar_one()
+        other = sqlite3.connect(str(db_path), timeout=0.1)
+        try:
+            other.execute("BEGIN IMMEDIATE")
+            other.rollback()
         finally:
             other.close()
