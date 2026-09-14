@@ -12,14 +12,18 @@ def test_load_builtin_locations_resolves_every_singleton_by_kind(engine: Engine)
     with Session(engine) as session:
         result = load_builtin_locations(session)
 
-    assert result.locations.kitchen_id != result.production_id
-    assert {
-        result.locations.kitchen_id,
-        result.production_id,
-        result.locations.sold_id,
-        result.locations.waste_id,
-        result.locations.sampled_id,
-    } == set(range(1, 6))
+    ids_by_kind = {
+        "kitchen": result.locations.kitchen_id,
+        "production": result.production_id,
+        "sold": result.locations.sold_id,
+        "waste": result.locations.waste_id,
+        "sampled": result.locations.sampled_id,
+    }
+    assert len(set(ids_by_kind.values())) == 5
+    with Session(engine) as session:
+        for kind, location_id in ids_by_kind.items():
+            assert session.get(Location, location_id) is not None
+            assert session.get_one(Location, location_id).kind == kind
     assert result.locations.inventory_location_ids == {result.locations.kitchen_id}
 
 

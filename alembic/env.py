@@ -63,7 +63,7 @@ def run_migrations_online() -> None:
     that issues `BEGIN IMMEDIATE` underneath that would fight Alembic for
     control of the transaction boundary. A migration runs once,
     single-threaded, with nothing else contending for the write lock, so
-    the serialization `make_engine` exists for buys nothing here.
+    the serialization that `make_engine` provides buys nothing here.
     """
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),

@@ -72,6 +72,6 @@ def test_no_foreign_key_cascades_deletes() -> None:
         offenders.extend(
             f"{table.name}.{foreign_key.parent.name}"
             for foreign_key in table.foreign_keys
-            if foreign_key.ondelete is not None and foreign_key.ondelete.upper() == "CASCADE"
+            if foreign_key.ondelete is not None
         )
     assert offenders == []
