@@ -16,7 +16,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
 from inventory.api.auth import require_session
-from inventory.app import write_session
+from inventory.app import today, write_session
 from inventory.db.models import Location
 from inventory.db.writes import InvalidQuantityError
 from inventory.domain import DomainError
@@ -128,6 +128,16 @@ def add_rollback_probe(app: FastAPI, path: str = "/api/v1/_test/rollback-probe")
         session.add(Location(name="Probe", kind="stand", active=True))
         session.flush()
         raise InvalidQuantityError(field="probe", value=-1, minimum=0)
+
+    _move_to_front(app)
+
+
+def add_today_probe(app: FastAPI, path: str = "/api/v1/_test/today") -> None:
+    """A protected route echoing the injected business `today()`, to pin clock injection."""
+
+    @app.get(path, dependencies=[Depends(require_session)])
+    def probe(today_value: date = Depends(today)) -> dict[str, str]:
+        return {"today": today_value.isoformat()}
 
     _move_to_front(app)
 

@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import Request
+from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from inventory.db.transaction import write_transaction
@@ -48,11 +48,17 @@ def business_today(instant: datetime, timezone: ZoneInfo) -> date:
     return instant.astimezone(timezone).date()
 
 
-def today(request: Request) -> date:
-    """Today's calendar date in the business's configured timezone."""
-    return business_today(datetime.now(UTC), request.app.state.timezone)
-
-
 def now() -> datetime:
     """The current instant, always UTC."""
     return datetime.now(UTC)
+
+
+def today(request: Request, instant: datetime = Depends(now)) -> date:
+    """Today's calendar date in the business's configured timezone.
+
+    Depends on `now` (rather than calling `datetime.now(UTC)` directly)
+    so a test overriding `now` via `app.dependency_overrides` also drives
+    `today`, and every route depending on either sees one consistent
+    instant for the request.
+    """
+    return business_today(instant, request.app.state.timezone)

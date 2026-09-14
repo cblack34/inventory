@@ -204,6 +204,67 @@ def test_patch_validates_before_mutating_anything_including_a_valid_lines_replac
         assert post_lines == pre_lines
 
 
+def test_rename_to_an_existing_sibling_size_name_is_rejected_before_any_write(
+    engine: Engine, bake_fixture: BakeFixture
+) -> None:
+    """Renaming a size to a name another size on the same recipe already has must be rejected.
+
+    `Medium` -> `Large` collides with the existing `Large` size's
+    current name; the old per-flush translation would have caught this
+    too, but only after this size's row was already mutated in the
+    session -- the preflight must reject it before any write.
+    """
+    with Session(engine) as session:
+        request = RecipePatchRequest(
+            sizes=[SizePatchInput(id=bake_fixture.medium_id, name="Large")]
+        )
+
+        with pytest.raises(NameConflictError) as exc_info:
+            update_recipe(session, bake_fixture.recipe_id, request)
+
+        assert exc_info.value.value == "Large"
+        assert len(session.new) == 0
+        assert len(session.dirty) == 0
+        medium = session.get_one(Size, bake_fixture.medium_id)
+        assert medium.name == "Medium"
+
+
+def test_rename_plus_new_size_colliding_with_a_third_sibling_is_rejected_before_any_write(
+    engine: Engine, bake_fixture: BakeFixture
+) -> None:
+    """A valid rename paired with a new size colliding with a third, untouched size.
+
+    `Medium` -> `Big` is fine on its own, but the same patch also adds a
+    new size named `Small`, which the recipe already has -- the whole
+    patch must be rejected for the new size's name, and neither the
+    rename nor the new size may be written.
+    """
+    with Session(engine) as session:
+        request = RecipePatchRequest(
+            sizes=[
+                SizePatchInput(id=bake_fixture.medium_id, name="Big"),
+                SizePatchInput(
+                    name="Small", portion_weight_g=30, price_cents=50, typical_yield_count=1
+                ),
+            ]
+        )
+
+        with pytest.raises(NameConflictError) as exc_info:
+            update_recipe(session, bake_fixture.recipe_id, request)
+
+        assert exc_info.value.value == "Small"
+        assert len(session.new) == 0
+        assert len(session.dirty) == 0
+        medium = session.get_one(Size, bake_fixture.medium_id)
+        assert medium.name == "Medium"
+        sizes = (
+            session.execute(select(Size).where(Size.recipe_id == bake_fixture.recipe_id))
+            .scalars()
+            .all()
+        )
+        assert {size.name for size in sizes} == {"Large", "Medium", "Small"}
+
+
 def test_foreign_size_id_is_rejected_in_preflight_leaving_earlier_items_unapplied(
     engine: Engine, single_size_recipe: SingleSizeRecipe, bake_fixture: BakeFixture
 ) -> None:

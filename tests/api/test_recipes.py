@@ -425,6 +425,66 @@ def test_get_recipe_runs_the_same_bounded_number_of_queries(
     assert get_count == list_count
 
 
+def _create_recipe_payload(ingredient_ids: list[int]) -> dict[str, Any]:
+    return {
+        "name": "Cookie",
+        "shelf_life_days": 5,
+        "lines": [
+            {"ingredient_id": ingredient_id, "quantity": 1} for ingredient_id in ingredient_ids
+        ],
+        "sizes": [
+            {"name": "Only", "portion_weight_g": 10, "price_cents": 100, "typical_yield_count": 1}
+        ],
+    }
+
+
+def _create_recipe_with_line_count(client: TestClient, line_count: int) -> dict[str, Any]:
+    ingredient_ids = [_create_ingredient(client, price_cents=100) for _ in range(line_count)]
+    response = client.post("/api/v1/recipes", json=_create_recipe_payload(ingredient_ids))
+    assert response.status_code == 201
+    return response.json()
+
+
+def test_patch_recipe_response_runs_a_bounded_number_of_queries_regardless_of_line_count(
+    client: TestClient, app: FastAPI
+) -> None:
+    """Pins the eager-reload fix for the write routes' patch response.
+
+    Before `update_recipe_route` reloaded the recipe with
+    `_RECIPE_LOAD_OPTIONS`, building `RecipeRead` from the plain row
+    `update_recipe` returned lazily loaded `lines` (and each line's
+    `ingredient`, for the live cost estimate) one query at a time, so
+    patching a three-line recipe and a six-line recipe -- with the same
+    shape of change -- ran a different number of statements.
+
+    Measured through a name-only `PATCH` rather than a `POST` that adds
+    the lines: creating N new `recipe_line` rows always costs N `INSERT`
+    statements on SQLite regardless of eager loading, because
+    SQLAlchemy's `insertmanyvalues` batching needs a row-order guarantee
+    SQLite's `RETURNING` cannot give for autoincrement primary keys, so
+    the ORM falls back to one `INSERT` per new row -- a real write-side
+    cost, but unrelated to this fix, that would swamp it in a
+    POST-vs-POST comparison. A name-only `PATCH` writes nothing to
+    `recipe_line` at all, isolating the read-side reload this test pins.
+    """
+    login(client)
+    three_line_recipe = _create_recipe_with_line_count(client, 3)
+    six_line_recipe = _create_recipe_with_line_count(client, 6)
+
+    three_line_count = _count_statements(
+        app,
+        lambda: client.patch(
+            f"/api/v1/recipes/{three_line_recipe['id']}", json={"name": "Renamed"}
+        ),
+    )
+    six_line_count = _count_statements(
+        app,
+        lambda: client.patch(f"/api/v1/recipes/{six_line_recipe['id']}", json={"name": "Renamed"}),
+    )
+
+    assert three_line_count == six_line_count
+
+
 def test_strict_int_rejects_string_and_float_for_a_quantity_field(client: TestClient) -> None:
     login(client)
     ingredient_id = _create_ingredient(client, price_cents=100)

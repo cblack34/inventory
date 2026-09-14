@@ -63,6 +63,21 @@ def _to_db_sizes(sizes: list[SizeCreate]) -> list[DbSizeCreate]:
     ]
 
 
+def _reload_recipe(session: Session, recipe_id: int) -> Recipe:
+    """Re-fetch `recipe_id` with `_RECIPE_LOAD_OPTIONS`, for the write routes' response body.
+
+    `create_recipe`/`update_recipe` return a plain `Recipe` loaded (or
+    left with unloaded relationships) purely for the write itself; a
+    lazy `Recipe.lines`/`Recipe.sizes` access while building `RecipeRead`
+    would otherwise run one query per relationship per call -- fine for
+    one recipe, but this makes the response's query count independent of
+    how many lines or sizes the recipe has, matching the list and get
+    routes' `selectinload` shape.
+    """
+    stmt = select(Recipe).where(Recipe.id == recipe_id).options(*_RECIPE_LOAD_OPTIONS)
+    return session.execute(stmt).scalar_one()
+
+
 def _to_db_size_patches(items: list[SizePatchItem]) -> list[DbSizePatch]:
     return [
         DbSizePatch(
@@ -102,7 +117,10 @@ def create_recipe_route(
     )
     with catalog_errors(session):
         row = create_recipe(session, request)
-    return RecipeRead.from_model(row)
+    recipe_id = row.id
+    session.flush()
+    session.expire(row)
+    return RecipeRead.from_model(_reload_recipe(session, recipe_id))
 
 
 @router.patch("/{recipe_id}")
@@ -117,4 +135,6 @@ def update_recipe_route(
     )
     with catalog_errors(session):
         row = update_recipe(session, recipe_id, request)
-    return RecipeRead.from_model(row)
+    session.flush()
+    session.expire(row)
+    return RecipeRead.from_model(_reload_recipe(session, recipe_id))

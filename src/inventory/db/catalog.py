@@ -416,6 +416,47 @@ def _reject_duplicate_new_size_names(items: Sequence[SizePatchInput]) -> None:
         seen.add(key)
 
 
+def _final_size_names(
+    session: Session, recipe_id: int, items: Sequence[SizePatchInput]
+) -> list[str]:
+    """Every size's name as it would read *after* `items` applied, computed with no write.
+
+    An existing size not named by any patch item keeps its stored name;
+    one named by a patch item takes the patch's `name` when the patch
+    sets one, and its stored name otherwise. Each new item (`id` absent)
+    contributes its own `name` when given -- an incomplete new item with
+    no `name` fails its own `IncompleteSizeError` check later, in
+    `_create_size`, before anything is written for it either way, so
+    omitting it here changes nothing about what gets rejected.
+    """
+    patches_by_id = {item.id: item for item in items if item.id is not None}
+    rows = session.execute(select(Size.id, Size.name).where(Size.recipe_id == recipe_id)).all()
+    names: list[str] = []
+    for row in rows:
+        patch = patches_by_id.get(row.id)
+        names.append(patch.name if patch is not None and patch.name is not None else row.name)
+    names.extend(item.name for item in items if item.id is None and item.name is not None)
+    return names
+
+
+def _reject_duplicate_final_size_names(names: Sequence[str]) -> None:
+    """Reject a case-insensitive duplicate anywhere in the recipe's final size-name set.
+
+    Runs before any write, on the *final* names -- existing sizes with
+    patched renames applied, plus new items -- so a rename that only
+    collides with another size's post-patch name (not its pre-patch one)
+    is still caught up front, instead of surfacing later as a
+    `NameConflictError` translated from a UNIQUE-constraint flush
+    failure partway through applying the patch.
+    """
+    seen: set[str] = set()
+    for name in names:
+        key = name.casefold()
+        if key in seen:
+            raise NameConflictError(field="name", value=name)
+        seen.add(key)
+
+
 def _prospective_size_yields(
     session: Session, recipe_id: int, items: Sequence[SizePatchInput]
 ) -> list[SizeYield]:
@@ -463,18 +504,25 @@ def _validate_recipe_patch(session: Session, recipe_id: int, request: RecipePatc
     """Every pure check `update_recipe` must pass before it writes anything.
 
     Duplicate-size-id and duplicate-new-size-name checks run first and
-    then every size id is checked for existence and ownership and every
-    new item for completeness, so applying the patch can no longer raise
-    after a partial write. Then:
     need no query -- a duplicate would otherwise corrupt
     `_prospective_size_yields`'s `id`-keyed merge or the later flush
     order, so both are caught before either that check or any write
-    runs. Unknown-ingredient and zero-weight checks follow, each read-only.
+    runs. Then every size id is checked for existence and ownership and
+    every new item for completeness, so applying the patch can no longer
+    raise after a partial write. With every item known-good, the final
+    size-name set (existing names with patched renames applied, plus
+    new items) is checked for a case-insensitive collision up front --
+    `_flush_catching_name_conflict` remains as a backstop for whatever
+    this preflight cannot see (e.g. a name check bypassing this
+    function entirely), but the normal case never reaches a partial
+    flush to find out. Unknown-ingredient and zero-weight checks follow,
+    each read-only.
     """
     if request.sizes is not None:
         _reject_duplicate_size_patch_ids(request.sizes)
         _reject_duplicate_new_size_names(request.sizes)
         _reject_foreign_or_incomplete_sizes(session, recipe_id, request.sizes)
+        _reject_duplicate_final_size_names(_final_size_names(session, recipe_id, request.sizes))
     if request.lines is not None:
         _reject_unknown_ingredients(session, request.lines)
     if request.sizes is not None:

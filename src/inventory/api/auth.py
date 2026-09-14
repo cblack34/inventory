@@ -14,6 +14,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from typing import Literal
 
 from fastapi import APIRouter, FastAPI, Request, Response
 from pydantic import BaseModel, ConfigDict
@@ -100,6 +101,41 @@ class LoginThrottle:
         with self._lock:
             self._failures.pop(ip, None)
 
+    def attempt(self, ip: str, check: Callable[[], bool]) -> Literal["ok", "invalid"] | int:
+        """Check throttle state, run `check`, and update state -- all under one lock hold.
+
+        Without a single lock hold spanning all three steps, several
+        concurrent requests from one attacking IP could each read "not
+        yet throttled" before any of them recorded its own failure,
+        letting more than `_MAX_FAILURES` failures through past the
+        ceiling (a classic check-then-act race). `check` is expected to
+        be a `secrets.compare_digest` call on two short strings, which
+        completes in microseconds, so serializing it behind this lock
+        does not meaningfully block unrelated IPs' requests.
+
+        Returns `"ok"` on a correct password (clearing `ip`'s recorded
+        failures), `"invalid"` on an incorrect one (recording a
+        failure), or -- if `ip` is already throttled, in which case
+        `check` is never called -- the remaining window in seconds as a
+        positive `int`.
+        """
+        now = self._clock()
+        with self._lock:
+            recent = self._recent_failures_locked(ip, now=now)
+            if len(recent) >= _MAX_FAILURES:
+                return max(1, math.ceil(_THROTTLE_WINDOW_SECONDS - (now - min(recent))))
+            if check():
+                self._failures.pop(ip, None)
+                return "ok"
+            recent.append(now)
+            self._failures[ip] = recent
+            self._failures.move_to_end(ip)
+            if len(self._failures) > _SWEEP_CEILING:
+                self._sweep_locked(now)
+            if len(self._failures) > _SWEEP_CEILING:
+                self._evict_oldest_locked()
+            return "invalid"
+
     @property
     def tracked_ip_count(self) -> int:
         """How many IPs currently have at least one still-in-window failure.
@@ -144,22 +180,23 @@ def _build_session_router(settings: Settings, throttle: LoginThrottle) -> APIRou
     @router.post("/session", status_code=204, responses={429: problem_response()})
     def login(payload: LoginRequest, request: Request) -> Response:
         ip = _client_ip(request)
-        retry_after = throttle.retry_after_seconds(ip)
-        if retry_after is not None:
+
+        def check() -> bool:
+            return secrets.compare_digest(
+                payload.password.encode("utf-8"),
+                settings.shared_password.get_secret_value().encode("utf-8"),
+            )
+
+        result = throttle.attempt(ip, check)
+        if isinstance(result, int):
             raise ProblemHTTPException(
                 429,
                 type_="urn:inventory:problem:too-many-requests",
                 title="Too Many Requests",
                 detail="too many failed login attempts",
-                retry_after_seconds=retry_after,
+                retry_after_seconds=result,
             )
-
-        correct = secrets.compare_digest(
-            payload.password.encode("utf-8"),
-            settings.shared_password.get_secret_value().encode("utf-8"),
-        )
-        if not correct:
-            throttle.record_failure(ip)
+        if result == "invalid":
             raise ProblemHTTPException(
                 401,
                 type_="urn:inventory:problem:invalid-credentials",
@@ -167,7 +204,6 @@ def _build_session_router(settings: Settings, throttle: LoginThrottle) -> APIRou
                 detail="incorrect password",
             )
 
-        throttle.clear(ip)
         request.session["authenticated"] = True
         return Response(status_code=204)
 

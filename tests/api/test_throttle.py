@@ -5,6 +5,8 @@ property of `LoginThrottle` itself, and a fake clock lets the test move
 time forward without sleeping.
 """
 
+import threading
+
 from inventory.api.auth import LoginThrottle
 
 _THROTTLE_WINDOW_SECONDS = 15 * 60
@@ -65,3 +67,43 @@ def test_retry_after_seconds_rounds_up_to_the_next_whole_second() -> None:
     clock.advance(0.6)
 
     assert throttle.retry_after_seconds("10.2.0.1") == 900
+
+
+def test_concurrent_wrong_password_attempts_from_one_ip_never_record_past_the_ceiling() -> None:
+    """20 threads racing through `attempt` with a wrong password from one IP.
+
+    Before `attempt` held a single lock across the throttle check, the
+    credential check, and the state update, several threads could each
+    observe "not yet throttled" before any of them recorded its own
+    failure, letting more than `_MAX_FAILURES` failures through the
+    ceiling. `attempt` fully serializes each call, so with every thread
+    failing its check the outcome is deterministic: exactly
+    `_MAX_FAILURES` calls record a failure (return `"invalid"`) and
+    every other call is throttled (returns an `int` retry-after), never
+    the other way around.
+    """
+    clock = _FakeClock()
+    throttle = LoginThrottle(clock=clock)
+    ip = "10.3.0.1"
+    thread_count = 20
+    results: list[str | int] = []
+    results_lock = threading.Lock()
+
+    def worker() -> None:
+        result = throttle.attempt(ip, lambda: False)
+        with results_lock:
+            results.append(result)
+
+    threads = [threading.Thread(target=worker) for _ in range(thread_count)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    invalid_count = sum(1 for result in results if result == "invalid")
+    throttled_count = sum(1 for result in results if isinstance(result, int))
+
+    assert len(results) == thread_count
+    assert invalid_count == _MAX_FAILURES
+    assert throttled_count == thread_count - _MAX_FAILURES
+    assert throttled_count >= 1
