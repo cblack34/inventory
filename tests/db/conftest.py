@@ -16,8 +16,15 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import URL
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from inventory.db.engine import make_engine
+from tests.db.seed import (
+    BakeFixture,
+    SingleSizeRecipe,
+    seed_bake_fixture,
+    seed_single_size_recipe,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ALEMBIC_INI = _REPO_ROOT / "alembic.ini"
@@ -62,3 +69,15 @@ def engine(db_path: Path, migrated_config: Config) -> Iterator[Engine]:
     built_engine = make_engine(str(db_path))
     yield built_engine
     built_engine.dispose()
+
+
+@pytest.fixture
+def bake_fixture(engine: Engine) -> BakeFixture:
+    with Session(engine) as session:
+        return seed_bake_fixture(session)
+
+
+@pytest.fixture
+def single_size_recipe(engine: Engine) -> SingleSizeRecipe:
+    with Session(engine) as session:
+        return seed_single_size_recipe(session)
