@@ -79,7 +79,11 @@ class Settings(BaseSettings):
     def _timezone_is_known(cls, value: str) -> str:
         try:
             ZoneInfo(value)
-        except ZoneInfoNotFoundError as exc:
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            # `ZoneInfoNotFoundError` covers an unknown key (e.g. `Mars/Phobos`);
+            # plain `ValueError` covers a key `zoneinfo` refuses to even look
+            # up, such as an absolute path (`TIMEZONE=/etc/localtime`), which
+            # it rejects before the lookup that would raise the former.
             raise ValueError(f"TIMEZONE {value!r} is not a known IANA timezone name") from exc
         return value
 

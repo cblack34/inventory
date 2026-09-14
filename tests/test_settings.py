@@ -25,3 +25,12 @@ def test_relative_db_is_rejected_naming_db() -> None:
         Settings(DB="inventory.db", **_VALID_KWARGS)
 
     assert "DB" in str(exc_info.value)
+
+
+def test_absolute_path_timezone_is_rejected_naming_timezone() -> None:
+    """`ZoneInfo` raises plain `ValueError` for an absolute path, not `ZoneInfoNotFoundError`."""
+    kwargs = {**_VALID_KWARGS, "TIMEZONE": "/etc/localtime"}
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(DB="/tmp/inventory.db", **kwargs)
+
+    assert "TIMEZONE" in str(exc_info.value)
