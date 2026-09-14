@@ -99,6 +99,26 @@ def test_strict_int_price_rejects_string_and_float(client: TestClient) -> None:
     assert as_float.status_code == 422
 
 
+def test_patch_empty_name_is_rejected_with_errors_list(client: TestClient) -> None:
+    login(client)
+    ingredient_id = _create_ingredient(client)
+
+    response = client.patch(f"/api/v1/ingredients/{ingredient_id}", json={"name": ""})
+
+    assert response.status_code == 422
+    assert "errors" in response.json()
+
+
+def test_patch_empty_unit_label_is_rejected(client: TestClient) -> None:
+    login(client)
+    ingredient_id = _create_ingredient(client)
+
+    response = client.patch(f"/api/v1/ingredients/{ingredient_id}", json={"unit_label": ""})
+
+    assert response.status_code == 422
+    assert "errors" in response.json()
+
+
 def test_unknown_field_rejected_with_errors_list(client: TestClient) -> None:
     login(client)
 

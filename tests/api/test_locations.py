@@ -160,3 +160,28 @@ def test_location_name_collision_case_insensitive_is_rejected(client: TestClient
 
     assert response.status_code == 422
     assert response.json()["type"] == "urn:inventory:problem:name-conflict"
+
+
+def test_patch_rename_collision_reports_the_supplied_colliding_value(client: TestClient) -> None:
+    login(client)
+    client.post("/api/v1/locations", json={"name": "Roadside", "kind": "stand"})
+    market = client.post(
+        "/api/v1/locations", json={"name": "Farmers Market", "kind": "market"}
+    ).json()
+
+    response = client.patch(f"/api/v1/locations/{market['id']}", json={"name": "ROADSIDE"})
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["type"] == "urn:inventory:problem:name-conflict"
+    assert body["value"] == "ROADSIDE"
+
+
+def test_patch_empty_name_is_rejected_with_errors_list(client: TestClient) -> None:
+    login(client)
+    stand = client.post("/api/v1/locations", json={"name": "Roadside", "kind": "stand"}).json()
+
+    response = client.patch(f"/api/v1/locations/{stand['id']}", json={"name": ""})
+
+    assert response.status_code == 422
+    assert "errors" in response.json()

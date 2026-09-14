@@ -24,16 +24,16 @@ from inventory.domain.costing import SizeYield, recipe_cost_cents, split_unit_co
 class IngredientCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    name: str
-    unit_label: str
+    name: str = Field(min_length=1)
+    unit_label: str = Field(min_length=1)
     current_price_cents: int = Field(ge=0)
 
 
 class IngredientUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    name: str | None = None
-    unit_label: str | None = None
+    name: str | None = Field(default=None, min_length=1)
+    unit_label: str | None = Field(default=None, min_length=1)
     current_price_cents: int | None = Field(default=None, ge=0)
     active: bool | None = None
 
@@ -68,7 +68,7 @@ class RecipeLineRead(BaseModel):
 class SizeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    name: str
+    name: str = Field(min_length=1)
     portion_weight_g: int = Field(ge=1)
     price_cents: int = Field(ge=0)
     typical_yield_count: int = Field(ge=0)
@@ -80,7 +80,7 @@ class SizePatchItem(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     id: int | None = None
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1)
     portion_weight_g: int | None = Field(default=None, ge=1)
     price_cents: int | None = Field(default=None, ge=0)
     typical_yield_count: int | None = Field(default=None, ge=0)
@@ -100,7 +100,7 @@ class SizeRead(BaseModel):
 class RecipeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    name: str
+    name: str = Field(min_length=1)
     shelf_life_days: int = Field(ge=0)
     lines: list[RecipeLineInput] = Field(default_factory=list[RecipeLineInput])
     sizes: list[SizeCreate] = Field(min_length=1)
@@ -109,7 +109,7 @@ class RecipeCreate(BaseModel):
 class RecipePatch(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1)
     shelf_life_days: int | None = Field(default=None, ge=0)
     lines: list[RecipeLineInput] | None = None
     sizes: list[SizePatchItem] | None = None
@@ -175,7 +175,7 @@ class RecipeRead(BaseModel):
 class LocationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    name: str
+    name: str = Field(min_length=1)
     kind: Literal["stand", "market"]
 
 
@@ -184,7 +184,7 @@ class LocationPatch(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1)
     active: bool | None = None
 
 

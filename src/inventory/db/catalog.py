@@ -3,10 +3,12 @@
 Every function here takes an open `Session` and writes rows; none of
 them commits -- `inventory.db.transaction.write_transaction` owns the
 transaction boundary (mirrors `inventory.db.writes`). See
-`docs/data-model.md`, "Concepts": ingredients are deactivate-only (this
-module never lets a caller flip `active` back to `True`); recipes and
-sizes are permanent -- fields update and sizes may be added, but no
-route or function here ever removes one; a recipe or size update that
+`docs/data-model.md`, "Concepts": ingredients are deactivate-only, which
+here means there is no delete, not that reactivation is unsupported --
+`update_ingredient` lets `active` move either way, so a deactivated
+ingredient can come back; recipes and sizes are permanent -- fields
+update and sizes may be added, but no route or function here ever
+removes one; a recipe or size update that
 would leave the typical total weight (sum of portion_weight_g x
 typical_yield_count over every size) at zero is rejected before
 anything is written, the same rule
@@ -28,6 +30,7 @@ from inventory.domain import DomainError
 from inventory.domain.costing import SizeYield, split_unit_costs
 
 _BUILTIN_LOCATION_KINDS = frozenset({"kitchen", "production", "sold", "waste", "sampled"})
+_CREATABLE_LOCATION_KINDS = frozenset({"stand", "market"})
 
 
 class UnknownIngredientError(DomainError):
@@ -73,6 +76,20 @@ class LocationHasStockError(DomainError):
         super().__init__(
             f"location {location_id} holds {on_hand} units on hand and cannot be deactivated"
         )
+
+
+class InvalidLocationKindError(DomainError):
+    """A location create named a `kind` other than `stand` or `market`.
+
+    Enforced here independent of the Pydantic `Literal["stand",
+    "market"]` on `LocationCreate` -- this function is the write path's
+    own guard, not a mirror of the API schema's validation.
+    """
+
+    def __init__(self, *, kind: str) -> None:
+        self.kind = kind
+        allowed = sorted(_CREATABLE_LOCATION_KINDS)
+        super().__init__(f"location kind {kind!r} must be one of {allowed}")
 
 
 class NameConflictError(DomainError):
@@ -352,6 +369,9 @@ def update_recipe(session: Session, recipe_id: int, request: RecipePatchRequest)
 
 
 def create_location(session: Session, *, name: str, kind: str) -> Location:
+    """Create an active stand or market; rejects any other `kind` regardless of the caller."""
+    if kind not in _CREATABLE_LOCATION_KINDS:
+        raise InvalidLocationKindError(kind=kind)
     location = Location(name=name, kind=kind, active=True)
     session.add(location)
     _flush_catching_name_conflict(session, field="name", value=name)
@@ -397,5 +417,6 @@ def update_location(
         location.name = name
     if active is not None:
         location.active = active
-    _flush_catching_name_conflict(session, field="name", value=name or location.name)
+    conflict_value = name if name is not None else location.name
+    _flush_catching_name_conflict(session, field="name", value=conflict_value)
     return location

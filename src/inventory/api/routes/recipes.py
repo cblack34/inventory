@@ -8,7 +8,7 @@ route sits behind `require_session`.
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from inventory.api.auth import require_session
 from inventory.api.deps import read_session, write_session
@@ -30,8 +30,20 @@ from inventory.db.catalog import RecipeLineInput as DbLineInput
 from inventory.db.catalog import SizeCreateInput as DbSizeCreate
 from inventory.db.catalog import SizePatchInput as DbSizePatch
 from inventory.db.models import Recipe
+from inventory.db.models import RecipeLine as RecipeLineRow
 
 router = APIRouter(prefix="/recipes", tags=["recipes"], dependencies=[Depends(require_session)])
+
+# Loads every recipe's lines (and each line's ingredient, for the live
+# cost estimate) and sizes in a bounded number of statements regardless
+# of how many recipes come back -- `selectinload` issues one extra
+# `SELECT ... WHERE recipe_id IN (...)` per relationship rather than one
+# per row, avoiding the N+1 that a lazy `Recipe.lines` / `Recipe.sizes`
+# access would otherwise trigger for every list or detail read.
+_RECIPE_LOAD_OPTIONS = (
+    selectinload(Recipe.lines).selectinload(RecipeLineRow.ingredient),
+    selectinload(Recipe.sizes),
+)
 
 
 def _to_db_lines(lines: list[RecipeLineInput]) -> list[DbLineInput]:
@@ -65,13 +77,15 @@ def _to_db_size_patches(items: list[SizePatchItem]) -> list[DbSizePatch]:
 
 @router.get("")
 def list_recipes(session: Session = Depends(read_session)) -> list[RecipeRead]:
-    rows = session.execute(select(Recipe).order_by(Recipe.id)).scalars().all()
+    stmt = select(Recipe).order_by(Recipe.id).options(*_RECIPE_LOAD_OPTIONS)
+    rows = session.execute(stmt).scalars().all()
     return [RecipeRead.from_model(row) for row in rows]
 
 
 @router.get("/{recipe_id}")
 def get_recipe(recipe_id: int, session: Session = Depends(read_session)) -> RecipeRead:
-    row = session.get_one(Recipe, recipe_id)
+    stmt = select(Recipe).where(Recipe.id == recipe_id).options(*_RECIPE_LOAD_OPTIONS)
+    row = session.execute(stmt).scalars().one()
     return RecipeRead.from_model(row)
 
 

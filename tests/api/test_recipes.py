@@ -6,9 +6,12 @@ must return per-size estimates 63/25/13 -- the `round_half_up` boundary
 `round()` would get wrong (62/25/12).
 """
 
+from collections.abc import Callable
 from typing import Any
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 from tests.api.probes import login
 
@@ -292,3 +295,76 @@ def test_negative_quantity_is_rejected(client: TestClient) -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_patch_empty_name_is_rejected_with_errors_list(client: TestClient) -> None:
+    login(client)
+    recipe = _create_recipe_with_two_sizes(client)
+
+    response = client.patch(f"/api/v1/recipes/{recipe['id']}", json={"name": ""})
+
+    assert response.status_code == 422
+    assert "errors" in response.json()
+
+
+def _count_statements(app: FastAPI, action: Callable[[], object]) -> int:
+    """Run `action`, counting every statement `app.state.engine` executes for it.
+
+    Mirrors `tests.db.test_queries._history_with_query_count`'s
+    `before_cursor_execute` listener.
+    """
+    engine = app.state.engine
+    count = 0
+
+    def _count_statement(
+        _conn: object,
+        _cursor: object,
+        _statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        nonlocal count
+        count += 1
+
+    event.listen(engine, "before_cursor_execute", _count_statement)
+    try:
+        action()
+    finally:
+        event.remove(engine, "before_cursor_execute", _count_statement)
+    return count
+
+
+def test_list_recipes_runs_a_bounded_number_of_queries_regardless_of_recipe_count(
+    client: TestClient, app: FastAPI
+) -> None:
+    """Pins the `selectinload` fix for the list endpoint's ingredient/lines/sizes N+1.
+
+    Before eager loading, each extra recipe added one lazy `lines` query
+    and one lazy `sizes` query (plus one more per line for its
+    ingredient), so three recipes and six recipes would run a different
+    number of statements. After `selectinload`, the statement count is
+    bounded by the number of relationships, not the number of rows.
+    """
+    login(client)
+    for _ in range(3):
+        _create_recipe_with_two_sizes(client)
+    three_recipes_count = _count_statements(app, lambda: client.get("/api/v1/recipes"))
+
+    for _ in range(3):
+        _create_recipe_with_two_sizes(client)
+    six_recipes_count = _count_statements(app, lambda: client.get("/api/v1/recipes"))
+
+    assert three_recipes_count == six_recipes_count
+
+
+def test_get_recipe_runs_the_same_bounded_number_of_queries(
+    client: TestClient, app: FastAPI
+) -> None:
+    login(client)
+    recipe = _create_recipe_with_two_sizes(client)
+
+    list_count = _count_statements(app, lambda: client.get("/api/v1/recipes"))
+    get_count = _count_statements(app, lambda: client.get(f"/api/v1/recipes/{recipe['id']}"))
+
+    assert get_count == list_count
