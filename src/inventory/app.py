@@ -6,62 +6,38 @@ never touch the real environment, and so `inventory.__main__` can fail
 fast on bad configuration before ever constructing the app.
 """
 
-from collections.abc import Iterator
-from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from inventory.api.auth import LoginThrottle, install_auth
+from inventory.api.deps import business_today, now, read_session, today, write_session
 from inventory.api.problems import install_problem_handlers, problem_response
+from inventory.api.routes.ingredients import router as ingredients_router
+from inventory.api.routes.locations import router as locations_router
+from inventory.api.routes.recipes import router as recipes_router
 from inventory.api.static import mount_static
 from inventory.db.engine import make_engine, make_session_factory, write_engine
-from inventory.db.transaction import write_transaction
 from inventory.settings import Settings
+
+# `business_today`, `now`, `read_session`, `today`, and `write_session` live
+# in `inventory.api.deps` (see that module's docstring for why); re-exported
+# here so existing call sites that read them off `inventory.app` -- tests
+# and, soon, ledger routes -- keep working unchanged.
+__all__ = [
+    "HealthResponse",
+    "business_today",
+    "create_app",
+    "now",
+    "read_session",
+    "today",
+    "write_session",
+]
 
 
 class HealthResponse(BaseModel):
     status: str
-
-
-def read_session(request: Request) -> Iterator[Session]:
-    """Yield a plain session bound to the app's engine; opens no explicit transaction."""
-    with Session(request.app.state.engine) as session:
-        yield session
-
-
-def write_session(request: Request) -> Iterator[Session]:
-    """Open one serialized write transaction (`BEGIN IMMEDIATE`) and yield its session.
-
-    FastAPI runs a generator dependency's teardown after the route
-    handler returns or raises, so an exception the handler raises --
-    including a `DomainError` -- propagates through this `with` block
-    first: `write_transaction` rolls back before the exception reaches
-    the Problem Details handler that renders the response.
-    """
-    with write_transaction(request.app.state.write_session_factory) as session:
-        yield session
-
-
-def business_today(instant: datetime, timezone: ZoneInfo) -> date:
-    """The calendar date of an aware `instant` in the business's timezone.
-
-    `docs/data-model.md` ("Expiration"): the owners enter visits in the
-    evening, when a UTC container date would already be tomorrow.
-    """
-    return instant.astimezone(timezone).date()
-
-
-def today(request: Request) -> date:
-    """Today's calendar date in the business's configured timezone."""
-    return business_today(datetime.now(UTC), request.app.state.timezone)
-
-
-def now() -> datetime:
-    """The current instant, always UTC."""
-    return datetime.now(UTC)
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -93,6 +69,10 @@ def create_app(settings: Settings) -> FastAPI:
     @app.get("/api/v1/health")
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    app.include_router(ingredients_router, prefix="/api/v1")
+    app.include_router(recipes_router, prefix="/api/v1")
+    app.include_router(locations_router, prefix="/api/v1")
 
     mount_static(app)
 
