@@ -88,7 +88,7 @@ GitHub issues are the WIP tracker and source of task-level detail.
 
 - **Topology:** per-slice spine with leaf PRs.
 - **Branch or spine:** `slice/domain`; leaves `domain/costing`, `domain/ledger`, `domain/visits`.
-- **Final PR:** to be added in the delivery record.
+- **Final PR:** [#15](https://github.com/cblack34/inventory/pull/15).
 - **Human merge gate:** Only the human may physically merge the final PR to `main`. Agents must stop when it is ready.
 
 ## Amendments
@@ -99,9 +99,9 @@ None.
 
 Complete once when the final PR is ready for human merge. Do not use this section for WIP status.
 
-- **Outcome:** pending
-- **Verification:** pending
-- **Deviations:** pending
-- **Unresolved gates or risks:** pending
-- **Final PR:** pending
-- **Merge state:** pending
+- **Outcome:** Delivered 2026-09-14. `src/inventory/domain/` holds money rounding, recipe cost and weight-based split, the ledger fold, FIFO, sequential reversal planning, stand and market settlement, visit profit, and expiration state, all as pure functions over dataclasses with integer fields. Weights are integer grams and money integer cents project-wide.
+- **Verification:** `rm -rf .venv src/web/node_modules && make check` exit 0 on spine head 565a2fb (pyright strict 0 errors, 44 pytest of which 40 are domain tests, web stages green, types drift clean). Leaf evidence on [#12](https://github.com/cblack34/inventory/pull/12), [#13](https://github.com/cblack34/inventory/pull/13), [#14](https://github.com/cblack34/inventory/pull/14): green CI and a Copilot head-matched pass with zero comments on each final head. Every pinned acceptance number and behavior listed under "Final acceptance advanced" has a test; the import-purity subprocess check and the no-float dataclass walk pass. Issues [#9](https://github.com/cblack34/inventory/issues/9), [#10](https://github.com/cblack34/inventory/issues/10), [#11](https://github.com/cblack34/inventory/issues/11) carry the detailed trail.
+- **Deviations:** Settlement planners take a grouped `Context` rather than six parameters, to respect ruff's argument limit. `InsufficientStock` keeps its pinned name under a one-line naming suppression while the visits errors carry an `Error` suffix. One Copilot note asking the domain to reject negative input quantities was declined per the code-quality rule that Pydantic validates at the boundary.
+- **Unresolved gates or risks:** Hosting target remains open (unchanged). The sample-size weight-to-count helper and the stand-side sample handling decision are recorded for the frontend slice.
+- **Final PR:** [#15](https://github.com/cblack34/inventory/pull/15).
+- **Merge state:** Ready for the human to merge; agents do not merge to `main`.
