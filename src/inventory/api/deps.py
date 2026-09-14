@@ -10,8 +10,6 @@ names (`from inventory.api.deps import ... as ...`) so existing call
 sites that read them off `inventory.app` keep working unchanged.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo

@@ -4,8 +4,6 @@ No `PUT`, no `DELETE`: an ingredient is deactivate-only (`active=False`
 via `PATCH`), never removed. Every route sits behind `require_session`.
 """
 
-from __future__ import annotations
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session

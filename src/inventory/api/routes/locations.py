@@ -6,8 +6,6 @@ it is rejected as an unknown key. Every route sits behind
 `require_session`.
 """
 
-from __future__ import annotations
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session

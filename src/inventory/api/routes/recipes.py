@@ -6,8 +6,6 @@ No `PUT`, no `DELETE`: a recipe and its sizes are permanent once created
 route sits behind `require_session`.
 """
 
-from __future__ import annotations
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
