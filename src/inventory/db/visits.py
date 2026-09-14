@@ -22,6 +22,7 @@ from inventory.db.models import Entry, Location, Size
 from inventory.db.models import Movement as MovementRow
 from inventory.db.models import Visit as VisitRow
 from inventory.db.stock import load_stock, unit_costs
+from inventory.db.writes import InvalidQuantityError
 from inventory.domain import DomainError
 from inventory.domain.ledger import PlannedMovement
 from inventory.domain.visits import (
@@ -33,16 +34,6 @@ from inventory.domain.visits import (
     plan_stand_visit,
 )
 from inventory.domain.visits import visit_profit as _domain_visit_profit
-
-
-class InvalidQuantityError(DomainError):
-    """A visit's revenue or fee is below the minimum this module accepts."""
-
-    def __init__(self, *, field: str, value: int, minimum: int) -> None:
-        self.field = field
-        self.value = value
-        self.minimum = minimum
-        super().__init__(f"{field} must be at least {minimum}, got {value}")
 
 
 class InvalidVisitLocationError(DomainError):
