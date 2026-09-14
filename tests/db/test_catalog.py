@@ -19,13 +19,14 @@ from inventory.db.catalog import (
     NameConflictError,
     RecipeLineInput,
     RecipePatchRequest,
+    SizeNotInRecipeError,
     SizePatchInput,
     create_location,
     update_recipe,
 )
 from inventory.db.models import RecipeLine, Size
 from inventory.domain.costing import ZeroWeightError
-from tests.db.seed import SingleSizeRecipe
+from tests.db.seed import BakeFixture, SingleSizeRecipe
 
 
 def test_create_location_rejects_a_kind_the_schema_would_never_allow_through(
@@ -201,3 +202,23 @@ def test_patch_validates_before_mutating_anything_including_a_valid_lines_replac
             )
         ).all()
         assert post_lines == pre_lines
+
+
+def test_foreign_size_id_is_rejected_in_preflight_leaving_earlier_items_unapplied(
+    engine: Engine, single_size_recipe: SingleSizeRecipe, bake_fixture: BakeFixture
+) -> None:
+    """A valid update followed by a foreign id must not apply the valid one first."""
+    with Session(engine) as session:
+        request = RecipePatchRequest(
+            sizes=[
+                SizePatchInput(id=single_size_recipe.size_id, price_cents=999),
+                SizePatchInput(id=bake_fixture.large_id, price_cents=1),
+            ]
+        )
+
+        with pytest.raises(SizeNotInRecipeError):
+            update_recipe(session, single_size_recipe.recipe_id, request)
+
+        assert len(session.dirty) == 0
+        own_size = session.get_one(Size, single_size_recipe.size_id)
+        assert own_size.price_cents != 999

@@ -307,33 +307,51 @@ def create_recipe(session: Session, request: RecipeCreateRequest) -> Recipe:
     return recipe
 
 
-def _create_size(session: Session, recipe_id: int, item: SizePatchInput) -> None:
-    name, portion_weight_g = item.name, item.portion_weight_g
-    price_cents, typical_yield_count = item.price_cents, item.typical_yield_count
-    if (
-        name is None
-        or portion_weight_g is None
-        or price_cents is None
-        or typical_yield_count is None
-    ):
-        missing = tuple(
-            field
-            for field, value in (
-                ("name", name),
-                ("portion_weight_g", portion_weight_g),
-                ("price_cents", price_cents),
-                ("typical_yield_count", typical_yield_count),
-            )
-            if value is None
+def _missing_new_size_fields(item: SizePatchInput) -> tuple[str, ...]:
+    """Required fields a new-size item (no `id`) left out."""
+    return tuple(
+        field
+        for field, value in (
+            ("name", item.name),
+            ("portion_weight_g", item.portion_weight_g),
+            ("price_cents", item.price_cents),
+            ("typical_yield_count", item.typical_yield_count),
         )
+        if value is None
+    )
+
+
+def _reject_foreign_or_incomplete_sizes(
+    session: Session, recipe_id: int, items: Sequence[SizePatchInput]
+) -> None:
+    """Preflight every size item.
+
+    An `id` must exist and belong to the recipe; a new item must be complete.
+    """
+    for item in items:
+        if item.id is None:
+            missing = _missing_new_size_fields(item)
+            if missing:
+                raise IncompleteSizeError(missing_fields=missing)
+            continue
+        size = session.get_one(Size, item.id)
+        if size.recipe_id != recipe_id:
+            raise SizeNotInRecipeError(size_id=item.id, recipe_id=recipe_id)
+
+
+def _create_size(session: Session, recipe_id: int, item: SizePatchInput) -> None:
+    missing = _missing_new_size_fields(item)
+    if missing:
         raise IncompleteSizeError(missing_fields=missing)
+    name = item.name
+    assert name is not None  # narrowed by the check above
     session.add(
         Size(
             recipe_id=recipe_id,
             name=name,
-            portion_weight_g=portion_weight_g,
-            price_cents=price_cents,
-            typical_yield_count=typical_yield_count,
+            portion_weight_g=item.portion_weight_g,
+            price_cents=item.price_cents,
+            typical_yield_count=item.typical_yield_count,
         )
     )
     _flush_catching_name_conflict(session, field="name", value=name)
@@ -445,6 +463,9 @@ def _validate_recipe_patch(session: Session, recipe_id: int, request: RecipePatc
     """Every pure check `update_recipe` must pass before it writes anything.
 
     Duplicate-size-id and duplicate-new-size-name checks run first and
+    then every size id is checked for existence and ownership and every
+    new item for completeness, so applying the patch can no longer raise
+    after a partial write. Then:
     need no query -- a duplicate would otherwise corrupt
     `_prospective_size_yields`'s `id`-keyed merge or the later flush
     order, so both are caught before either that check or any write
@@ -453,6 +474,7 @@ def _validate_recipe_patch(session: Session, recipe_id: int, request: RecipePatc
     if request.sizes is not None:
         _reject_duplicate_size_patch_ids(request.sizes)
         _reject_duplicate_new_size_names(request.sizes)
+        _reject_foreign_or_incomplete_sizes(session, recipe_id, request.sizes)
     if request.lines is not None:
         _reject_unknown_ingredients(session, request.lines)
     if request.sizes is not None:

@@ -416,3 +416,20 @@ def test_get_recipe_runs_the_same_bounded_number_of_queries(
     get_count = _count_statements(app, lambda: client.get(f"/api/v1/recipes/{recipe['id']}"))
 
     assert get_count == list_count
+
+
+def test_strict_int_rejects_string_and_float_for_a_quantity_field(client: TestClient) -> None:
+    login(client)
+    ingredient_id = _create_ingredient(client, price_cents=100)
+    size = {"name": "Regular", "portion_weight_g": 10, "price_cents": 1, "typical_yield_count": 1}
+
+    def payload(quantity: object) -> dict[str, Any]:
+        return {
+            "name": "Cookie",
+            "shelf_life_days": 5,
+            "lines": [{"ingredient_id": ingredient_id, "quantity": quantity}],
+            "sizes": [size],
+        }
+
+    assert client.post("/api/v1/recipes", json=payload("1")).status_code == 422
+    assert client.post("/api/v1/recipes", json=payload(1.5)).status_code == 422
