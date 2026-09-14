@@ -500,3 +500,22 @@ def test_strict_int_rejects_string_and_float_for_a_quantity_field(client: TestCl
 
     assert client.post("/api/v1/recipes", json=payload("1")).status_code == 422
     assert client.post("/api/v1/recipes", json=payload(1.5)).status_code == 422
+
+
+def test_recipe_create_rejects_sizes_equal_under_unicode_case_folding(client: TestClient) -> None:
+    login(client)
+    ingredient_id = _create_ingredient(client, price_cents=100)
+    size = {"portion_weight_g": 10, "price_cents": 1, "typical_yield_count": 1}
+
+    response = client.post(
+        "/api/v1/recipes",
+        json={
+            "name": "Cookie",
+            "shelf_life_days": 5,
+            "lines": [{"ingredient_id": ingredient_id, "quantity": 1}],
+            "sizes": [{**size, "name": "Straße"}, {**size, "name": "STRASSE"}],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["type"] == "urn:inventory:problem:name-conflict"

@@ -279,6 +279,7 @@ def _size_yields(sizes: Sequence[SizeCreateInput]) -> list[SizeYield]:
 def create_recipe(session: Session, request: RecipeCreateRequest) -> Recipe:
     """Create a recipe with its lines and sizes; rejects zero typical total weight."""
     _reject_unknown_ingredients(session, request.lines)
+    _reject_casefold_duplicates([size.name for size in request.sizes])
     _reject_zero_typical_weight(_size_yields(request.sizes))
 
     recipe = Recipe(name=request.name, shelf_life_days=request.shelf_life_days)
@@ -602,10 +603,29 @@ def create_location(session: Session, *, name: str, kind: str) -> Location:
     """Create an active stand or market; rejects any other `kind` regardless of the caller."""
     if kind not in _CREATABLE_LOCATION_KINDS:
         raise InvalidLocationKindError(kind=kind)
+    _reject_casefold_location_name(session, name, exclude_id=None)
     location = Location(name=name, kind=kind, active=True)
     session.add(location)
     _flush_catching_name_conflict(session, field="name", value=name)
     return location
+
+
+def _reject_casefold_duplicates(names: Sequence[str]) -> None:
+    """Reject two names equal under Unicode case folding (SQLite's NOCASE is ASCII-only)."""
+    seen: set[str] = set()
+    for name in names:
+        key = name.casefold()
+        if key in seen:
+            raise NameConflictError(field="name", value=name)
+        seen.add(key)
+
+
+def _reject_casefold_location_name(session: Session, name: str, *, exclude_id: int | None) -> None:
+    """Reject a location name equal to another's under Unicode case folding."""
+    key = name.casefold()
+    for other_id, other_name in session.execute(select(Location.id, Location.name)).all():
+        if other_id != exclude_id and other_name.casefold() == key:
+            raise NameConflictError(field="name", value=name)
 
 
 def _reject_builtin_change(location: Location) -> None:
@@ -644,6 +664,7 @@ def update_location(
     if active is False and location.active:
         _reject_deactivate_with_stock(session, location)
     if name is not None:
+        _reject_casefold_location_name(session, name, exclude_id=location.id)
         location.name = name
     if active is not None:
         location.active = active

@@ -188,3 +188,19 @@ def test_patch_empty_name_is_rejected_with_errors_list(client: TestClient) -> No
 
     assert response.status_code == 422
     assert "errors" in response.json()
+
+
+def test_location_name_collision_under_unicode_case_folding_is_rejected(
+    client: TestClient,
+) -> None:
+    login(client)
+    first = client.post("/api/v1/locations", json={"name": "Straße", "kind": "stand"})
+    assert first.status_code == 201
+
+    second = client.post("/api/v1/locations", json={"name": "STRASSE", "kind": "stand"})
+    assert second.status_code == 422
+    assert second.json()["type"] == "urn:inventory:problem:name-conflict"
+
+    other = client.post("/api/v1/locations", json={"name": "Other", "kind": "market"})
+    rename = client.patch(f"/api/v1/locations/{other.json()['id']}", json={"name": "STRASSE"})
+    assert rename.status_code == 422

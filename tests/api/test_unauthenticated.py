@@ -5,6 +5,8 @@ returns 401; `/login` and a built asset stay public (200); FastAPI's
 disabled `/openapi.json` stays 404.
 """
 
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -135,3 +137,14 @@ def test_every_index_html_alias_is_gated(client: TestClient, alias: str) -> None
     authenticated = client.get(alias)
     assert authenticated.status_code == 200
     assert "inventory" in authenticated.text
+
+
+def test_nested_dist_files_are_not_public(client: TestClient, dist_dir: Path) -> None:
+    secret_dir = dist_dir / "private"
+    secret_dir.mkdir()
+    (secret_dir / "secret.json").write_text('{"leak": true}')
+
+    response = client.get("/private/secret.json", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert "leak" not in response.text

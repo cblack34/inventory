@@ -42,7 +42,9 @@ def _root_dist_file(dist_dir: Path, normalized_path: str) -> Path | None:
         return None
     resolved_dist = dist_dir.resolve()
     candidate = (dist_dir / normalized_path).resolve()
-    if not candidate.is_relative_to(resolved_dist):
+    if candidate.parent != resolved_dist:
+        # Only files directly under dist are public; nested files fall
+        # through to the session-gated shell (assets have their own mount).
         return None
     if not candidate.is_file():
         return None
