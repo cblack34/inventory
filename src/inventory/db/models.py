@@ -73,6 +73,7 @@ class RecipeLine(Base):
     """One ingredient and quantity within a recipe."""
 
     __tablename__ = "recipe_line"
+    __table_args__ = (CheckConstraint("quantity >= 0", name="ck_recipe_line_quantity"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     recipe_id: Mapped[int] = mapped_column(ForeignKey("recipe.id"), nullable=False)
@@ -91,6 +92,7 @@ class Size(Base):
         UniqueConstraint("recipe_id", "name", name="uq_size_recipe_name"),
         CheckConstraint("portion_weight_g > 0", name="ck_size_portion_weight"),
         CheckConstraint("price_cents >= 0", name="ck_size_price"),
+        CheckConstraint("typical_yield_count >= 0", name="ck_size_typical_yield"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -160,6 +162,7 @@ class BatchSize(Base):
     """Per-(batch, size) count made and frozen unit cost."""
 
     __tablename__ = "batch_size"
+    __table_args__ = (CheckConstraint("count_made >= 1", name="ck_batch_size_count_made"),)
 
     batch_id: Mapped[int] = mapped_column(ForeignKey("batch.id"), primary_key=True)
     size_id: Mapped[int] = mapped_column(ForeignKey("size.id"), primary_key=True)

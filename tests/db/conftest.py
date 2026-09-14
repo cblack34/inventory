@@ -42,8 +42,14 @@ def db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def migrated_config(db_path: Path) -> Config:
-    """An Alembic `Config` for a temp file, migrated to `head`."""
+def migrated_config(db_path: Path, monkeypatch: pytest.MonkeyPatch) -> Config:
+    """An Alembic `Config` for a temp file, migrated to `head`.
+
+    `alembic/env.py` lets a `DB` environment variable override the URL, so
+    it is cleared here; otherwise a developer's or CI's real database
+    could be migrated instead of the temp file.
+    """
+    monkeypatch.delenv("DB", raising=False)
     config = alembic_config(db_path)
     command.upgrade(config, "head")
     return config

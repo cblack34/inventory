@@ -48,3 +48,46 @@ def test_location_name_differing_only_by_case_is_rejected(engine: Engine) -> Non
         conn.execute(
             text("INSERT INTO location (name, kind, active) VALUES ('kitchen', 'stand', 1)")
         )
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "INSERT INTO recipe_line (recipe_id, ingredient_id, quantity) VALUES (1, 1, -1)",
+        "INSERT INTO size (recipe_id, name, portion_weight_g, price_cents, typical_yield_count) "
+        "VALUES (1, 'neg', 10, 0, -1)",
+        "INSERT INTO batch_size (batch_id, size_id, count_made, unit_cost_cents) "
+        "VALUES (1, 1, 0, 5)",
+    ],
+    ids=["recipe_line.quantity", "size.typical_yield_count", "batch_size.count_made"],
+)
+def test_negative_or_zero_quantities_are_rejected(engine: Engine, statement: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO ingredient (id, name, unit_label, current_price_cents, active) "
+                "VALUES (1, 'salt', 'g', 0, 1)"
+            )
+        )
+        conn.execute(text("INSERT INTO recipe (id, name, shelf_life_days) VALUES (1, 'r', 5)"))
+        conn.execute(
+            text(
+                "INSERT INTO entry (id, kind, created_at, voided) "
+                "VALUES (1, 'bake', '2026-01-01 12:00:00', 0)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO batch (id, recipe_id, entry_id, baked, expires, total_cost_cents) "
+                "VALUES (1, 1, 1, '2026-01-01', '2026-01-06', 1000)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO size (id, recipe_id, name, portion_weight_g, price_cents, "
+                "typical_yield_count) VALUES (1, 1, 's', 50, 100, 2)"
+            )
+        )
+
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        conn.execute(text(statement))
