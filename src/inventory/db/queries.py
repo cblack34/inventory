@@ -4,24 +4,30 @@ Neither function writes anything. `stock_by_location` folds `load_stock`
 (see `inventory.db.stock`) into the grouping the home screen needs --
 inventory location, then size, then batch, each batch carrying its
 `inventory.domain.expiration.expiry_state`. `history` reads every entry
-newest first, with a non-voided visit's profit computed through
-`inventory.db.visits.visit_profit`. See `docs/data-model.md`, "Profit"
-and "Expiration", and `docs/acceptance.md`, "Home screen and expiration".
+newest first; a non-voided visit's profit is computed with the same
+`revenue - fee - cost_of(Sold) - cost_of(Waste) - cost_of(Sampled)` rule
+as `inventory.db.visits.visit_profit`, but over a handful of queries
+sized to the number of *kinds* of thing it reads, not the number of
+visits, so `history` stays a bounded number of round trips regardless
+of history length. See `docs/data-model.md`, "Profit" and "Expiration",
+and `docs/acceptance.md`, "Home screen and expiration".
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from inventory.db.builtins import load_builtin_locations
-from inventory.db.models import Entry, Location, Recipe, Size
+from inventory.db.models import BatchSize, Entry, Location, Recipe, Size
+from inventory.db.models import Movement as MovementRow
+from inventory.db.models import Visit as VisitRow
 from inventory.db.stock import load_stock
-from inventory.db.visits import visit_profit
 from inventory.domain.expiration import ExpiryState, expiry_state
 from inventory.domain.ledger import BatchOrder, OnHand
+from inventory.domain.visits import Locations
 
 
 @dataclass(frozen=True)
@@ -169,11 +175,62 @@ def stock_by_location(session: Session, today: date) -> list[LocationStock]:
     ]
 
 
-def _history_entry(session: Session, entry: Entry) -> HistoryEntry:
-    visit_row = entry.visit
+def _visit_rows_by_entry(session: Session) -> dict[int, VisitRow]:
+    rows = session.execute(select(VisitRow)).scalars().all()
+    return {row.entry_id: row for row in rows}
+
+
+def _visit_costs_by_entry(
+    session: Session, entry_ids: Collection[int]
+) -> dict[int, dict[int, int]]:
+    """`entry_id -> {to_location_id: total_cost_cents}`, one query for all of `entry_ids`.
+
+    Sums `unit_cost_cents * quantity` over each visit's movements, per
+    destination location, the same figure `visit_profit`'s `_cost_to`
+    computes one visit at a time. Only destinations a movement actually
+    lands on appear; a visit with no waste, say, has no entry for
+    Waste's location id.
+    """
+    if not entry_ids:
+        return {}
+    rows = session.execute(
+        select(
+            MovementRow.entry_id,
+            MovementRow.to_location_id,
+            func.sum(BatchSize.unit_cost_cents * MovementRow.quantity),
+        )
+        .join(
+            BatchSize,
+            (BatchSize.batch_id == MovementRow.batch_id)
+            & (BatchSize.size_id == MovementRow.size_id),
+        )
+        .where(MovementRow.entry_id.in_(entry_ids))
+        .group_by(MovementRow.entry_id, MovementRow.to_location_id)
+    ).all()
+    costs: dict[int, dict[int, int]] = {}
+    for entry_id, to_location_id, cost_cents in rows:
+        costs.setdefault(entry_id, {})[to_location_id] = cost_cents
+    return costs
+
+
+def _visit_profit_cents(
+    visit_row: VisitRow, costs_by_location: Mapping[int, int], locations: Locations
+) -> int:
+    sold = costs_by_location.get(locations.sold_id, 0)
+    waste = costs_by_location.get(locations.waste_id, 0)
+    sampled = costs_by_location.get(locations.sampled_id, 0)
+    return visit_row.revenue_cents - visit_row.fee_cents - sold - waste - sampled
+
+
+def _history_entry(
+    entry: Entry,
+    visit_row: VisitRow | None,
+    costs_by_entry: Mapping[int, Mapping[int, int]],
+    locations: Locations,
+) -> HistoryEntry:
     profit_cents = None
     if visit_row is not None and not entry.voided:
-        profit_cents = visit_profit(session, entry.id).profit_cents
+        profit_cents = _visit_profit_cents(visit_row, costs_by_entry.get(entry.id, {}), locations)
     return HistoryEntry(
         entry_id=entry.id,
         kind=entry.kind,
@@ -193,10 +250,24 @@ def history(session: Session) -> list[HistoryEntry]:
     is `None` for a voided visit: `docs/data-model.md`, "Profit" says a
     voided visit "shows no profit figure in history ... and is excluded
     from any profit or revenue totals."
+
+    Runs a bounded number of queries regardless of how many entries or
+    visits exist: one for every entry, one for every visit row, one
+    aggregate for every non-voided visit's movement costs, and the two
+    `load_builtin_locations` issues -- never one query per visit.
     """
     entries = (
         session.execute(select(Entry).order_by(Entry.created_at.desc(), Entry.id.desc()))
         .scalars()
         .all()
     )
-    return [_history_entry(session, entry) for entry in entries]
+    visits_by_entry = _visit_rows_by_entry(session)
+    non_voided_visit_entry_ids = [
+        entry.id for entry in entries if not entry.voided and entry.id in visits_by_entry
+    ]
+    costs_by_entry = _visit_costs_by_entry(session, non_voided_visit_entry_ids)
+    locations = load_builtin_locations(session).locations
+    return [
+        _history_entry(entry, visits_by_entry.get(entry.id), costs_by_entry, locations)
+        for entry in entries
+    ]

@@ -4,15 +4,17 @@ See `docs/acceptance.md`, "Home screen and expiration", "Profit", and
 "Corrections", and `docs/data-model.md`, "Expiration" and "Profit".
 """
 
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from inventory.db.builtins import load_builtin_locations
-from inventory.db.queries import history, stock_by_location
+from inventory.db.queries import HistoryEntry, history, stock_by_location
 from inventory.db.stock import load_stock
-from inventory.db.visits import MarketVisit, record_market_visit
+from inventory.db.visits import MarketVisit, record_market_visit, visit_profit
 from inventory.db.writes import BakeRequest, ManualMove, record_bake, record_manual_move, undo
 from inventory.domain.visits import MarketRow
 from tests.db.seed import BakeFixture, SingleSizeRecipe, StandAndMarket
@@ -170,3 +172,157 @@ def test_history_lists_newest_first_and_a_voided_visit_has_no_profit_figure(
     assert visit_history.voided is True
     assert visit_history.profit_cents is None
     assert visit_history.location_id == stand_and_market.market_id
+
+
+@dataclass(frozen=True)
+class _MarketVisitCounts:
+    """Grouped inputs to `_market_visit`, to stay under the arg-count lint."""
+
+    market_id: int
+    size_id: int
+    taken: int
+    returned: int
+    revenue_cents: int
+
+
+def _market_visit(session: Session, counts: _MarketVisitCounts) -> int:
+    return record_market_visit(
+        session,
+        MarketVisit(
+            market_id=counts.market_id,
+            rows=[
+                MarketRow(
+                    size_id=counts.size_id, taken=counts.taken, returned=counts.returned, tossed=0
+                )
+            ],
+            revenue_cents=counts.revenue_cents,
+            fee_cents=0,
+        ),
+        now=_NOW,
+    )
+
+
+def _history_with_query_count(engine: Engine, session: Session) -> tuple[list[HistoryEntry], int]:
+    """Run `history(session)`, counting every statement `engine` executes for it."""
+    count = 0
+
+    def _count_statement(
+        _conn: object,
+        _cursor: object,
+        _statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        nonlocal count
+        count += 1
+
+    event.listen(engine, "before_cursor_execute", _count_statement)
+    try:
+        entries = history(session)
+    finally:
+        event.remove(engine, "before_cursor_execute", _count_statement)
+    return entries, count
+
+
+def test_history_runs_a_bounded_number_of_queries_and_matches_visit_profit(
+    engine: Engine, single_size_recipe: SingleSizeRecipe, stand_and_market: StandAndMarket
+) -> None:
+    with Session(engine) as session:
+        record_bake(
+            session,
+            BakeRequest(
+                recipe_id=single_size_recipe.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date() + timedelta(days=30),
+                counts={single_size_recipe.size_id: 40},
+            ),
+            now=_NOW,
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        first_entry_id = _market_visit(
+            session,
+            _MarketVisitCounts(
+                market_id=stand_and_market.market_id,
+                size_id=single_size_recipe.size_id,
+                taken=5,
+                returned=1,
+                revenue_cents=100,
+            ),
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        second_entry_id = _market_visit(
+            session,
+            _MarketVisitCounts(
+                market_id=stand_and_market.market_id,
+                size_id=single_size_recipe.size_id,
+                taken=5,
+                returned=2,
+                revenue_cents=150,
+            ),
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        voided_entry_id = _market_visit(
+            session,
+            _MarketVisitCounts(
+                market_id=stand_and_market.market_id,
+                size_id=single_size_recipe.size_id,
+                taken=5,
+                returned=0,
+                revenue_cents=200,
+            ),
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        undo(session, entry_id=voided_entry_id, now=_NOW)
+        session.commit()
+
+    # Three visit entries exist now (two settled, one voided by the undo).
+    with Session(engine) as session:
+        entries_with_three_visits, query_count_with_three_visits = _history_with_query_count(
+            engine, session
+        )
+
+    for entry_id in (first_entry_id, second_entry_id):
+        with Session(engine) as session:
+            expected_profit_cents = visit_profit(session, entry_id).profit_cents
+        history_entry = next(
+            entry for entry in entries_with_three_visits if entry.entry_id == entry_id
+        )
+        assert history_entry.revenue_cents is not None
+        assert history_entry.profit_cents == expected_profit_cents
+
+    voided_history_entry = next(
+        entry for entry in entries_with_three_visits if entry.entry_id == voided_entry_id
+    )
+    assert voided_history_entry.profit_cents is None
+
+    with Session(engine) as session:
+        _market_visit(
+            session,
+            _MarketVisitCounts(
+                market_id=stand_and_market.market_id,
+                size_id=single_size_recipe.size_id,
+                taken=5,
+                returned=1,
+                revenue_cents=175,
+            ),
+        )
+        session.commit()
+
+    # A fourth visit must not add another query: `history` reads visits and
+    # their movement costs in queries sized to the number of *kinds* of
+    # thing it reads, not the number of visits.
+    with Session(engine) as session:
+        _entries_with_four_visits, query_count_with_four_visits = _history_with_query_count(
+            engine, session
+        )
+
+    assert query_count_with_three_visits == query_count_with_four_visits

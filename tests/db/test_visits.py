@@ -149,54 +149,69 @@ def test_record_market_visit_rejects_over_taken_and_writes_nothing(
         assert market_movements == []
 
 
-def test_visit_locations_are_rejected_for_wrong_kind_terminal_or_inactive(
-    engine: Engine, single_size_recipe: SingleSizeRecipe, stand_and_market: StandAndMarket
+_LOCATION_KEYS = (
+    "kitchen",
+    "production",
+    "sold",
+    "waste",
+    "sampled",
+    "inactive_stand",
+    "inactive_market",
+    "wrong_kind",
+    "nonexistent",
+)
+
+_REJECTION_CASES = [
+    (record_kind, location_key)
+    for record_kind in ("stand", "market")
+    for location_key in _LOCATION_KEYS
+]
+
+
+@pytest.mark.parametrize(
+    ("record_kind", "location_key"),
+    _REJECTION_CASES,
+    ids=[f"{kind}-{key}" for kind, key in _REJECTION_CASES],
+)
+def test_visit_locations_are_rejected_for_every_invalid_target(
+    engine: Engine,
+    stand_and_market: StandAndMarket,
+    record_kind: str,
+    location_key: str,
 ) -> None:
     with Session(engine) as session:
-        _bake(session, single_size_recipe.recipe_id, {single_size_recipe.size_id: 10})
-
-    with Session(engine) as session:
-        kitchen_id = load_builtin_locations(session).locations.kitchen_id
-        waste_id = load_builtin_locations(session).locations.waste_id
-
-        with pytest.raises(InvalidVisitLocationError):
-            record_stand_visit(
-                session, StandVisit(stand_id=kitchen_id, rows=[], revenue_cents=0), now=_NOW
-            )
-        with pytest.raises(InvalidVisitLocationError):
-            record_stand_visit(
-                session, StandVisit(stand_id=waste_id, rows=[], revenue_cents=0), now=_NOW
-            )
-        with pytest.raises(InvalidVisitLocationError):
-            record_market_visit(
-                session,
-                MarketVisit(
-                    market_id=stand_and_market.stand_id, rows=[], revenue_cents=0, fee_cents=0
-                ),
-                now=_NOW,
-            )
-        with pytest.raises(InvalidVisitLocationError):
-            record_stand_visit(
-                session,
-                StandVisit(stand_id=stand_and_market.market_id, rows=[], revenue_cents=0),
-                now=_NOW,
-            )
-
-
-def test_visit_against_an_inactive_stand_is_rejected(
-    engine: Engine, stand_and_market: StandAndMarket
-) -> None:
-    with Session(engine) as session:
-        location = session.get_one(Location, stand_and_market.stand_id)
-        location.active = False
+        builtins = load_builtin_locations(session)
+        inactive_stand = Location(name="Closed Stand", kind="stand", active=False)
+        inactive_market = Location(name="Closed Market", kind="market", active=False)
+        session.add_all([inactive_stand, inactive_market])
         session.commit()
 
-    with Session(engine) as session, pytest.raises(InvalidVisitLocationError):
-        record_stand_visit(
-            session,
-            StandVisit(stand_id=stand_and_market.stand_id, rows=[], revenue_cents=0),
-            now=_NOW,
-        )
+        location_ids = {
+            "kitchen": builtins.locations.kitchen_id,
+            "production": builtins.production_id,
+            "sold": builtins.locations.sold_id,
+            "waste": builtins.locations.waste_id,
+            "sampled": builtins.locations.sampled_id,
+            "inactive_stand": inactive_stand.id,
+            "inactive_market": inactive_market.id,
+            "wrong_kind": (
+                stand_and_market.market_id if record_kind == "stand" else stand_and_market.stand_id
+            ),
+            "nonexistent": 999_999,
+        }
+        location_id = location_ids[location_key]
+
+        with pytest.raises(InvalidVisitLocationError):
+            if record_kind == "stand":
+                record_stand_visit(
+                    session, StandVisit(stand_id=location_id, rows=[], revenue_cents=0), now=_NOW
+                )
+            else:
+                record_market_visit(
+                    session,
+                    MarketVisit(market_id=location_id, rows=[], revenue_cents=0, fee_cents=0),
+                    now=_NOW,
+                )
 
 
 def test_record_stand_visit_rejects_negative_revenue(
@@ -221,6 +236,75 @@ def test_record_market_visit_rejects_negative_fee(
             ),
             now=_NOW,
         )
+
+
+@pytest.mark.parametrize(
+    "field", ["counted", "tossed", "pulled", "added"], ids=lambda field: f"stand-{field}"
+)
+def test_record_stand_visit_rejects_a_negative_row_field_and_writes_nothing(
+    engine: Engine,
+    single_size_recipe: SingleSizeRecipe,
+    stand_and_market: StandAndMarket,
+    field: str,
+) -> None:
+    with Session(engine) as session:
+        _bake(session, single_size_recipe.recipe_id, {single_size_recipe.size_id: 10})
+        _transfer(
+            session,
+            size_id=single_size_recipe.size_id,
+            to_location_id=stand_and_market.stand_id,
+            quantity=5,
+        )
+
+    row_fields = {"counted": 5, "tossed": 0, "pulled": 0, "added": 0, field: -1}
+
+    with Session(engine) as session:
+        before = _row_counts(session)
+        with pytest.raises(InvalidQuantityError):
+            record_stand_visit(
+                session,
+                StandVisit(
+                    stand_id=stand_and_market.stand_id,
+                    rows=[StandRow(size_id=single_size_recipe.size_id, **row_fields)],
+                    revenue_cents=0,
+                ),
+                now=_NOW,
+            )
+
+    with Session(engine) as session:
+        assert _row_counts(session) == before
+
+
+@pytest.mark.parametrize(
+    "field", ["taken", "returned", "tossed"], ids=lambda field: f"market-{field}"
+)
+def test_record_market_visit_rejects_a_negative_row_field_and_writes_nothing(
+    engine: Engine,
+    single_size_recipe: SingleSizeRecipe,
+    stand_and_market: StandAndMarket,
+    field: str,
+) -> None:
+    with Session(engine) as session:
+        _bake(session, single_size_recipe.recipe_id, {single_size_recipe.size_id: 10})
+
+    row_fields = {"taken": 5, "returned": 0, "tossed": 0, field: -1}
+
+    with Session(engine) as session:
+        before = _row_counts(session)
+        with pytest.raises(InvalidQuantityError):
+            record_market_visit(
+                session,
+                MarketVisit(
+                    market_id=stand_and_market.market_id,
+                    rows=[MarketRow(size_id=single_size_recipe.size_id, **row_fields)],
+                    revenue_cents=0,
+                    fee_cents=0,
+                ),
+                now=_NOW,
+            )
+
+    with Session(engine) as session:
+        assert _row_counts(session) == before
 
 
 def test_expected_revenue_is_frozen_against_a_later_price_change_and_shrink_is_positive(

@@ -95,6 +95,23 @@ def _require_visit_location(session: Session, *, location_id: int, expected_kind
         raise InvalidVisitLocationError(location_id=location_id, expected_kind=expected_kind)
 
 
+def _require_non_negative_rows(
+    rows: Sequence[StandRow] | Sequence[MarketRow], fields: tuple[str, ...]
+) -> None:
+    """Raise `InvalidQuantityError` on the first negative field of any row.
+
+    Runs before any DB read so a rejected visit never touches `entry`,
+    `visit`, or `movement`.
+    """
+    for row in rows:
+        for name in fields:
+            value: int = getattr(row, name)
+            if value < 0:
+                raise InvalidQuantityError(
+                    field=f"rows[{row.size_id}].{name}", value=value, minimum=0
+                )
+
+
 def _size_prices_cents(session: Session) -> dict[int, int]:
     rows = session.execute(select(Size.id, Size.price_cents)).all()
     return {row.id: row.price_cents for row in rows}
@@ -143,13 +160,16 @@ def _write_visit(session: Session, write: _VisitWrite, *, now: datetime) -> int:
 def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) -> int:
     """Record a stand visit: FIFO sale/waste/pull/add movements, `fee_cents = 0`.
 
-    Rejects a negative `revenue_cents` and a `stand_id` that is missing,
-    not a `stand`, or inactive before loading stock. `plan_stand_visit`
-    raises before returning if any size's counted, tossed+pulled, or
-    added is invalid, so nothing is written on rejection.
+    Rejects a negative `revenue_cents`, a negative `counted`, `tossed`,
+    `pulled`, or `added` on any row, and a `stand_id` that is missing,
+    not a `stand`, or inactive -- all before loading stock.
+    `plan_stand_visit` raises before returning if any size's counted,
+    tossed+pulled, or added is invalid, so nothing is written on
+    rejection.
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
+    _require_non_negative_rows(visit.rows, ("counted", "tossed", "pulled", "added"))
     _require_visit_location(session, location_id=visit.stand_id, expected_kind="stand")
 
     context = _build_context(session)
@@ -171,15 +191,17 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
 def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) -> int:
     """Record a market visit: FIFO take/sale/waste/return movements.
 
-    Rejects a negative `revenue_cents` or `fee_cents`, and a `market_id`
-    that is missing, not a `market`, or inactive, before loading stock.
-    `plan_market_visit` raises before returning if any size's
+    Rejects a negative `revenue_cents` or `fee_cents`, a negative
+    `taken`, `returned`, or `tossed` on any row, and a `market_id` that
+    is missing, not a `market`, or inactive -- all before loading
+    stock. `plan_market_visit` raises before returning if any size's
     returned+tossed exceeds taken, so nothing is written on rejection.
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
     if visit.fee_cents < 0:
         raise InvalidQuantityError(field="fee_cents", value=visit.fee_cents, minimum=0)
+    _require_non_negative_rows(visit.rows, ("taken", "returned", "tossed"))
     _require_visit_location(session, location_id=visit.market_id, expected_kind="market")
 
     context = _build_context(session)
