@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 from inventory.api.auth import require_session
 from inventory.api.deps import now, write_session
 from inventory.api.schemas.ledger import EntryRead, MovementCreate
-from inventory.api.stock_context import with_stock_context
+from inventory.api.stock_context import with_catalog_names
 from inventory.db.models import Entry
 from inventory.db.writes import ManualMove, record_manual_move
-from inventory.domain.ledger import InsufficientStock
+from inventory.domain import DomainError
 
 router = APIRouter(prefix="/movements", tags=["movements"], dependencies=[Depends(require_session)])
 
@@ -37,8 +37,8 @@ def create_movement(
     )
     try:
         entry_id = record_manual_move(session, move, now=moment)
-    except InsufficientStock as exc:
-        raise with_stock_context(session, exc) from None
+    except DomainError as exc:
+        raise with_catalog_names(session, exc) from None
     entry = session.get_one(Entry, entry_id)
     return EntryRead(
         entry_id=entry.id,

@@ -14,7 +14,7 @@ any payload carrying an unrecognized key, is rejected by
 fields end in `_cents`, matching `inventory.db.models`.
 """
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -221,6 +221,18 @@ class EntryRead(BaseModel):
     location_id: int | None
     revenue_cents: int | None
     profit_cents: int | None
+
+    @field_validator("created_at")
+    @classmethod
+    def _created_at_as_utc(cls, value: datetime) -> datetime:
+        """Attach `tzinfo=UTC` to a naive `created_at`.
+
+        SQLite's `DateTime` column round-trips a `datetime` as naive
+        (`inventory.api.deps.now` always writes UTC, but the driver
+        drops the offset), so the JSON response would otherwise carry
+        an ambiguous, offset-less timestamp instead of `+00:00`/`Z`.
+        """
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 # --- Stock ----------------------------------------------------------------------

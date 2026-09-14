@@ -14,9 +14,9 @@ from sqlalchemy.orm import Session
 from inventory.api.auth import require_session
 from inventory.api.deps import now, write_session
 from inventory.api.schemas.ledger import ReversalCreate, ReversalRead
-from inventory.api.stock_context import with_stock_context
+from inventory.api.stock_context import with_catalog_names
 from inventory.db.writes import undo
-from inventory.domain.ledger import InsufficientStock
+from inventory.domain import DomainError
 
 router = APIRouter(prefix="/reversals", tags=["reversals"], dependencies=[Depends(require_session)])
 
@@ -29,6 +29,6 @@ def create_reversal(
 ) -> ReversalRead:
     try:
         reversal_entry_id = undo(session, entry_id=payload.entry_id, now=moment)
-    except InsufficientStock as exc:
-        raise with_stock_context(session, exc) from None
+    except DomainError as exc:
+        raise with_catalog_names(session, exc) from None
     return ReversalRead(entry_id=reversal_entry_id, reverses_entry_id=payload.entry_id)

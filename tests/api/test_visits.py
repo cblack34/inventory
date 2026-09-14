@@ -134,6 +134,9 @@ def test_counted_exceeding_on_hand_is_rejected_naming_size_on_hand_and_counted(
     assert body["size_id"] == size_id
     assert body["on_hand"] == 2
     assert body["counted"] == 5
+    assert body["recipe_id"] == recipe["id"]
+    assert body["recipe_name"] == recipe["name"]
+    assert body["size_name"] == "Only"
 
 
 def test_added_exceeding_kitchen_stock_is_rejected_naming_recipe_size_and_location(
@@ -217,7 +220,11 @@ def test_tossed_plus_pulled_exceeding_counted_is_rejected_naming_the_size(
     )
 
     assert response.status_code == 422
-    assert response.json()["size_id"] == size_id
+    body = response.json()
+    assert body["size_id"] == size_id
+    assert body["recipe_id"] == recipe["id"]
+    assert body["recipe_name"] == recipe["name"]
+    assert body["size_name"] == "Only"
 
 
 def test_stand_payload_with_fee_cents_is_rejected(client: TestClient) -> None:
