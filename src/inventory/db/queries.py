@@ -19,6 +19,7 @@ from datetime import date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import ColumnElement
 
 from inventory.db.builtins import load_builtin_locations
 from inventory.db.models import BatchSize, Entry, Location, Recipe, Size
@@ -180,7 +181,16 @@ def _visit_rows_by_entry(session: Session) -> dict[int, VisitRow]:
     return {row.entry_id: row for row in rows}
 
 
-def _visit_costs_by_entry(session: Session) -> dict[int, dict[int, int]]:
+def _entry_filter(only_entry_id: int | None) -> tuple[ColumnElement[bool], ...]:
+    """An optional `entry_id` restriction for the visit-cost aggregate."""
+    if only_entry_id is None:
+        return ()
+    return (MovementRow.entry_id == only_entry_id,)
+
+
+def _visit_costs_by_entry(
+    session: Session, *, only_entry_id: int | None = None
+) -> dict[int, dict[int, int]]:
     """`entry_id -> {to_location_id: total_cost_cents}` for every non-voided visit, in one query.
 
     Sums `unit_cost_cents * quantity` over each visit's movements, per
@@ -206,6 +216,7 @@ def _visit_costs_by_entry(session: Session) -> dict[int, dict[int, int]]:
             & (BatchSize.size_id == MovementRow.size_id),
         )
         .where(MovementRow.entry_id.in_(non_voided_visit_ids))
+        .where(*_entry_filter(only_entry_id))
         .group_by(MovementRow.entry_id, MovementRow.to_location_id)
     ).all()
     costs: dict[int, dict[int, int]] = {}
@@ -275,3 +286,16 @@ def history(session: Session) -> list[HistoryEntry]:
         _history_entry(entry, visits_by_entry.get(entry.id), costs_by_entry, locations)
         for entry in entries
     ]
+
+
+def history_entry(session: Session, entry_id: int) -> HistoryEntry:
+    """One history row, read with the same rules as `history` but without scanning it.
+
+    Raises `sqlalchemy.exc.NoResultFound` when the entry does not exist.
+    Runs a fixed number of statements regardless of ledger size.
+    """
+    entry = session.get_one(Entry, entry_id)
+    visit_row = session.get(VisitRow, entry_id)
+    costs_by_entry = _visit_costs_by_entry(session, only_entry_id=entry_id)
+    locations = load_builtin_locations(session).locations
+    return _history_entry(entry, visit_row, costs_by_entry, locations)

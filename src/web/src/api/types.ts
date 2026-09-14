@@ -272,15 +272,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Entry
-         * @description Reuses `history`'s bounded-query read rather than a second query shape.
-         *
-         *     `history` already runs a fixed number of statements regardless of
-         *     how many entries exist; filtering the result in Python for one id
-         *     keeps that guarantee instead of adding a second, entry-shaped read
-         *     path next to it.
-         */
+        /** Get Entry */
         get: operations["get_entry_api_v1_entries__entry_id__get"];
         put?: never;
         post?: never;
