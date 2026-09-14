@@ -75,7 +75,7 @@ def _detail_or_none(detail: object) -> str | None:
     `str(None)` would render the four-character string `"None"` in the
     response body instead of leaving `detail` empty.
     """
-    if not detail:
+    if detail is None:
         return None
     return str(detail)
 

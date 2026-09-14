@@ -47,13 +47,18 @@ def write_session(request: Request) -> Iterator[Session]:
         yield session
 
 
-def today(request: Request) -> date:
-    """Today's calendar date in the business's configured timezone.
+def business_today(instant: datetime, timezone: ZoneInfo) -> date:
+    """The calendar date of an aware `instant` in the business's timezone.
 
     `docs/data-model.md` ("Expiration"): the owners enter visits in the
     evening, when a UTC container date would already be tomorrow.
     """
-    return datetime.now(request.app.state.timezone).date()
+    return instant.astimezone(timezone).date()
+
+
+def today(request: Request) -> date:
+    """Today's calendar date in the business's configured timezone."""
+    return business_today(datetime.now(UTC), request.app.state.timezone)
 
 
 def now() -> datetime:

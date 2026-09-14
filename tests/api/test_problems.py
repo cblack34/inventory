@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from inventory.api.problems import Problem
 from tests.api.probes import (
     add_domain_error_probe,
+    add_empty_detail_probe,
     add_extension_types_probe,
     add_nonstandard_status_probe,
     add_not_found_probe,
@@ -123,3 +124,14 @@ def test_unknown_body_key_returns_422_with_errors_list(client: TestClient) -> No
     assert body["type"] == "urn:inventory:problem:validation"
     assert isinstance(body["errors"], list)
     assert body["errors"]
+
+
+def test_empty_string_detail_is_preserved(app: FastAPI) -> None:
+    add_empty_detail_probe(app)
+
+    with TestClient(app) as client:
+        login(client)
+        response = client.get("/api/v1/_test/empty-detail")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == ""

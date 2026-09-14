@@ -48,12 +48,15 @@ def mount_static(app: FastAPI) -> None:
     fail app construction.
     """
     dist_dir = _DIST_DIR
-    if not dist_dir.is_dir():
-        sys.stderr.write(f"warning: {dist_dir} does not exist; frontend will not be served\n")
+    index_path = dist_dir / "index.html"
+    assets_dir = dist_dir / "assets"
+    if not (index_path.is_file() and assets_dir.is_dir()):
+        sys.stderr.write(
+            f"warning: {dist_dir} lacks index.html or assets/; frontend will not be served\n"
+        )
         return
 
-    index_path = dist_dir / "index.html"
-    app.mount("/assets", StaticFiles(directory=dist_dir / "assets"), name="assets")
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
     @app.get("/login", include_in_schema=False)
     def login_page() -> FileResponse:

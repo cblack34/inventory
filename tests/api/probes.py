@@ -130,3 +130,17 @@ def add_rollback_probe(app: FastAPI, path: str = "/api/v1/_test/rollback-probe")
         raise InvalidQuantityError(field="probe", value=-1, minimum=0)
 
     _move_to_front(app)
+
+
+def add_empty_detail_probe(app: FastAPI, path: str = "/api/v1/_test/empty-detail") -> None:
+    """A protected route raising an `HTTPException` whose detail is the empty string.
+
+    Starlette fills a default phrase only for `None`, so `""` reaches the
+    Problem handler as-is and must be preserved, not treated as absent.
+    """
+
+    @app.get(path, dependencies=[Depends(require_session)])
+    def probe() -> None:
+        raise HTTPException(status_code=400, detail="")
+
+    _move_to_front(app)
