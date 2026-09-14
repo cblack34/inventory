@@ -59,7 +59,7 @@ def test_patch_ingredient_price_changes_every_recipe_using_it(client: TestClient
     assert reloaded["sizes"][0]["estimated_unit_cost_cents"] == 400
 
 
-def test_ingredient_deactivate_then_reactivate_is_rejected(client: TestClient) -> None:
+def test_ingredient_can_be_deactivated_and_reactivated(client: TestClient) -> None:
     login(client)
     ingredient_id = _create_ingredient(client)
 
@@ -68,8 +68,8 @@ def test_ingredient_deactivate_then_reactivate_is_rejected(client: TestClient) -
     assert deactivated.json()["active"] is False
 
     reactivated = client.patch(f"/api/v1/ingredients/{ingredient_id}", json={"active": True})
-    assert reactivated.status_code == 422
-    assert reactivated.json()["type"] == "urn:inventory:problem:ingredient-reactivation"
+    assert reactivated.status_code == 200
+    assert reactivated.json()["active"] is True
 
 
 def test_negative_price_rejected(client: TestClient) -> None:

@@ -55,19 +55,6 @@ class IncompleteSizeError(DomainError):
         super().__init__(f"a new size is missing required fields: {', '.join(missing_fields)}")
 
 
-class IngredientReactivationError(DomainError):
-    """An ingredient patch tried to flip `active` from `False` to `True`.
-
-    Ingredients are deactivate-only: `docs/data-model.md` describes
-    deactivation but never reactivation, unlike a location (whose data
-    model explicitly allows it).
-    """
-
-    def __init__(self, *, ingredient_id: int) -> None:
-        self.ingredient_id = ingredient_id
-        super().__init__(f"ingredient {ingredient_id} cannot be reactivated")
-
-
 class BuiltinLocationError(DomainError):
     """A rename or (de)activation was attempted on a built-in location."""
 
@@ -129,10 +116,13 @@ class IngredientPatch:
 
 
 def update_ingredient(session: Session, ingredient_id: int, patch: IngredientPatch) -> Ingredient:
-    """Apply `patch` to an ingredient; rejects flipping `active` from `False` to `True`."""
+    """Apply `patch` to an ingredient.
+
+    `active` may move either way: deactivating hides the ingredient from
+    the picker for new recipe lines, and reactivating brings it back.
+    Deactivate-only in the data model means there is no delete.
+    """
     ingredient = session.get_one(Ingredient, ingredient_id)
-    if patch.active is True and not ingredient.active:
-        raise IngredientReactivationError(ingredient_id=ingredient_id)
     if patch.name is not None:
         ingredient.name = patch.name
     if patch.unit_label is not None:
