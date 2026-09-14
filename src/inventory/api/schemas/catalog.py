@@ -15,6 +15,7 @@ from typing import Any, Literal, cast
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
+from inventory.api.schemas.ids import Id
 from inventory.db.models import Recipe
 from inventory.domain.costing import RecipeLine as CostLine
 from inventory.domain.costing import SizeYield, recipe_cost_cents, split_unit_costs
@@ -55,7 +56,7 @@ class IngredientRead(BaseModel):
 class RecipeLineInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    ingredient_id: int
+    ingredient_id: Id
     quantity: int = Field(ge=0)
 
 
@@ -92,7 +93,7 @@ class SizePatchItem(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    id: int | SkipJsonSchema[None] = None
+    id: Id | SkipJsonSchema[None] = None
     name: str | None = Field(default=None, min_length=1)
     portion_weight_g: int | None = Field(default=None, ge=1)
     price_cents: int | None = Field(default=None, ge=0)

@@ -283,3 +283,28 @@ def test_foreign_size_id_is_rejected_in_preflight_leaving_earlier_items_unapplie
         assert len(session.dirty) == 0
         own_size = session.get_one(Size, single_size_recipe.size_id)
         assert own_size.price_cents != 999
+
+
+def test_swapping_two_size_names_succeeds_despite_the_colliding_intermediate_state(
+    engine: Engine, bake_fixture: BakeFixture
+) -> None:
+    """`Large` -> `Medium` and `Medium` -> `Large` in one patch has a collision-free final state.
+
+    Applying either rename alone, one flush at a time, would collide
+    with the other size's still-original name; `update_recipe` must
+    still land both renames.
+    """
+    with Session(engine) as session:
+        request = RecipePatchRequest(
+            sizes=[
+                SizePatchInput(id=bake_fixture.large_id, name="Medium"),
+                SizePatchInput(id=bake_fixture.medium_id, name="Large"),
+            ]
+        )
+
+        update_recipe(session, bake_fixture.recipe_id, request)
+
+        large = session.get_one(Size, bake_fixture.large_id)
+        medium = session.get_one(Size, bake_fixture.medium_id)
+        assert large.name == "Medium"
+        assert medium.name == "Large"

@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from inventory.api.problems import ProblemHTTPException, problem_response
-from inventory.settings import Settings
+from inventory.settings import MAX_PASSWORD_LENGTH, Settings
 
 _SESSION_COOKIE = "session"
 _MAX_AGE_SECONDS = 30 * 24 * 3600
@@ -152,8 +152,11 @@ class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # Bounded so the throttle lock is never held for an attacker-chosen
-    # amount of encoding and comparison work.
-    password: str = Field(min_length=1, max_length=256)
+    # amount of encoding and comparison work; the same bound
+    # `inventory.settings.MAX_PASSWORD_LENGTH` enforces on
+    # `SHARED_PASSWORD` at startup, so a configured password can never
+    # exceed the length this field will accept back at login.
+    password: str = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
 
 
 def require_session(request: Request) -> None:

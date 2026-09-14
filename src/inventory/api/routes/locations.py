@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from inventory.api.auth import require_session
 from inventory.api.deps import read_session, write_session
 from inventory.api.schemas.catalog import LocationCreate, LocationPatch, LocationRead
+from inventory.api.schemas.ids import IdPath
 from inventory.api.stock_context import catalog_errors
 from inventory.db.catalog import create_location, update_location
 from inventory.db.models import Location
@@ -27,7 +28,7 @@ def list_locations(session: Session = Depends(read_session)) -> list[LocationRea
 
 
 @router.get("/{location_id}")
-def get_location(location_id: int, session: Session = Depends(read_session)) -> LocationRead:
+def get_location(location_id: IdPath, session: Session = Depends(read_session)) -> LocationRead:
     row = session.get_one(Location, location_id)
     return LocationRead.model_validate(row)
 
@@ -43,7 +44,7 @@ def create_location_route(
 
 @router.patch("/{location_id}")
 def update_location_route(
-    location_id: int, payload: LocationPatch, session: Session = Depends(write_session)
+    location_id: IdPath, payload: LocationPatch, session: Session = Depends(write_session)
 ) -> LocationRead:
     with catalog_errors(session):
         row = update_location(session, location_id, name=payload.name, active=payload.active)

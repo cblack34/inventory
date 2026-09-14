@@ -18,6 +18,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _MIN_SESSION_SECRET_BYTES = 32
 
+# `inventory.api.auth.LoginRequest` bounds the wire-facing `password`
+# field to this same length, so the login throttle's lock is never held
+# for an attacker-chosen amount of encoding and comparison work; a
+# `SHARED_PASSWORD` longer than that bound could never be typed back in
+# to log in, so startup rejects it here rather than at first login.
+MAX_PASSWORD_LENGTH = 256
+
 
 class SettingsError(Exception):
     """Raised by `load_settings` when the environment is missing or invalid.
@@ -65,6 +72,13 @@ class Settings(BaseSettings):
     def _password_non_empty(cls, value: SecretStr) -> SecretStr:
         if not value.get_secret_value():
             raise ValueError("SHARED_PASSWORD must not be empty")
+        return value
+
+    @field_validator("shared_password")
+    @classmethod
+    def _password_within_max_length(cls, value: SecretStr) -> SecretStr:
+        if len(value.get_secret_value()) > MAX_PASSWORD_LENGTH:
+            raise ValueError(f"SHARED_PASSWORD must be at most {MAX_PASSWORD_LENGTH} characters")
         return value
 
     @field_validator("session_secret")

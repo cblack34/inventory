@@ -100,7 +100,13 @@ def test_tampered_cookie_is_treated_as_unauthenticated(app: FastAPI) -> None:
 
 
 def test_overlong_password_is_rejected_by_validation(client: TestClient) -> None:
-    response = client.post("/api/v1/session", json={"password": "x" * 257})
+    overlong = "x" * 257
+    response = client.post("/api/v1/session", json={"password": overlong})
 
     assert response.status_code == 422
-    assert response.json()["errors"]
+    errors = response.json()["errors"]
+    assert errors
+    for error in errors:
+        assert "input" not in error
+        assert "ctx" not in error
+    assert overlong not in response.text

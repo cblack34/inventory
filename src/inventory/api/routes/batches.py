@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from inventory.api.auth import require_session
 from inventory.api.deps import now, read_session, write_session
+from inventory.api.schemas.ids import IdPath
 from inventory.api.schemas.ledger import BatchCreate, BatchRead
 from inventory.api.stock_context import catalog_errors
 from inventory.db.models import Batch
@@ -49,5 +50,5 @@ def create_batch(
 
 
 @router.get("/{batch_id}")
-def get_batch(batch_id: int, session: Session = Depends(read_session)) -> BatchRead:
+def get_batch(batch_id: IdPath, session: Session = Depends(read_session)) -> BatchRead:
     return BatchRead.from_model(_load_batch(session, batch_id))

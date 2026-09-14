@@ -26,8 +26,18 @@ def _root_dist_file(dist_dir: Path, normalized_path: str) -> Path | None:
     something like `../pyproject.toml` must not resolve to a path
     outside `dist_dir` (`/assets` is unaffected -- it is a separate
     `StaticFiles` mount matched before this catch-all route ever runs).
+
+    Compares the resolved candidate against `index.html` by inode
+    (`samefile`), not by string, once both are known to exist: a
+    same-directory prefix (`./index.html`), a traversal that folds back
+    in (`foo/../index.html`), and a case variant on a case-insensitive
+    filesystem (`INDEX.HTML`) all name the same file on disk even
+    though `Path.resolve()` collapses the first two but never corrects
+    letter case for the third -- so a string comparison of resolved
+    paths alone would still miss that last alias. Every one of them
+    falls through to the session-gated branch below, never served here.
     """
-    if not normalized_path or normalized_path.lower() == "index.html":
+    if not normalized_path:
         # The shell itself is gated by the session check below, never public.
         return None
     resolved_dist = dist_dir.resolve()
@@ -35,6 +45,9 @@ def _root_dist_file(dist_dir: Path, normalized_path: str) -> Path | None:
     if not candidate.is_relative_to(resolved_dist):
         return None
     if not candidate.is_file():
+        return None
+    resolved_index = (dist_dir / "index.html").resolve()
+    if candidate.samefile(resolved_index):
         return None
     return candidate
 

@@ -5,6 +5,7 @@ returns 401; `/login` and a built asset stay public (200); FastAPI's
 disabled `/openapi.json` stays 404.
 """
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -108,5 +109,29 @@ def test_index_html_is_gated_like_any_shell_path(client: TestClient) -> None:
 
     login(client)
     authenticated = client.get("/index.html")
+    assert authenticated.status_code == 200
+    assert "inventory" in authenticated.text
+
+
+@pytest.mark.parametrize(
+    "alias",
+    ["/foo/%2e%2e/index.html", "/%2e/index.html", "/INDEX.HTML"],
+    ids=["dot-dot-traversal", "dot-prefix", "case-variant"],
+)
+def test_every_index_html_alias_is_gated(client: TestClient, alias: str) -> None:
+    """A traversal, a `.` prefix, and a case variant all name `index.html` and must all be gated.
+
+    `httpx` collapses a literal `..`/`.` segment before the request
+    ever leaves the client, which would make a plain `/foo/../index.html`
+    request exercise nothing new here; percent-encoding the dots
+    (`%2e`) survives client-side normalization so the raw, undecoded
+    alias actually reaches the app, matching what a real HTTP client
+    or proxy that does not normalize dot-segments could send.
+    """
+    unauthenticated = client.get(alias, follow_redirects=False)
+    assert unauthenticated.status_code == 303
+
+    login(client)
+    authenticated = client.get(alias)
     assert authenticated.status_code == 200
     assert "inventory" in authenticated.text

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from inventory.api.auth import require_session
 from inventory.api.deps import now, read_session, write_session
+from inventory.api.schemas.ids import IdPath
 from inventory.api.schemas.ledger import MarketVisitCreate, StandVisitCreate, VisitCreate, VisitRead
 from inventory.api.stock_context import with_catalog_names
 from inventory.db.models import Entry, Location
@@ -90,6 +91,6 @@ def create_visit(
 
 
 @router.get("/{entry_id}")
-def get_visit(entry_id: int, session: Session = Depends(read_session)) -> VisitRead:
+def get_visit(entry_id: IdPath, session: Session = Depends(read_session)) -> VisitRead:
     entry = session.get_one(Entry, entry_id)
     return _visit_read(session, entry_id, voided=entry.voided)

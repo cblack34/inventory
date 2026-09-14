@@ -126,6 +126,26 @@ def test_unknown_body_key_returns_422_with_errors_list(client: TestClient) -> No
     assert body["errors"]
 
 
+def test_validation_errors_never_echo_the_submitted_value(client: TestClient) -> None:
+    """A validation rejection's `errors` list keeps `type`/`loc`/`msg` but drops `input`/`ctx`.
+
+    `RequestValidationError.errors()` includes the offending value
+    verbatim under `input` (and sometimes a derived value under
+    `ctx`); the Problem handler must strip both before they reach the
+    response body, so a rejected secret (e.g. an over-long password)
+    is never echoed back.
+    """
+    response = client.post("/api/v1/session", json={"password": "x" * 257})
+
+    assert response.status_code == 422
+    errors = response.json()["errors"]
+    assert errors
+    for error in errors:
+        assert set(error) >= {"type", "loc", "msg"}
+        assert "input" not in error
+        assert "ctx" not in error
+
+
 def test_empty_string_detail_is_preserved(app: FastAPI) -> None:
     add_empty_detail_probe(app)
 

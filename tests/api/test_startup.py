@@ -57,3 +57,10 @@ def test_short_session_secret_exits_nonzero_naming_it(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "SESSION_SECRET" in result.stderr
+
+
+def test_overlong_shared_password_exits_nonzero_naming_it(tmp_path: Path) -> None:
+    result = _run({"SHARED_PASSWORD": "x" * 257}, tmp_path)
+
+    assert result.returncode != 0
+    assert "SHARED_PASSWORD" in result.stderr

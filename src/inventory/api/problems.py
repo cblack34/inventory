@@ -8,7 +8,7 @@ fields as extension members, and a validation rejection carries an
 """
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from http import HTTPStatus
 from typing import Any
 
@@ -76,6 +76,23 @@ def _detail_or_none(detail: object) -> str | None:
     if detail is None:
         return None
     return str(detail)
+
+
+_ECHOING_ERROR_KEYS = frozenset({"input", "ctx"})
+
+
+def _sanitized_errors(errors: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Every `RequestValidationError.errors()` item, minus `input` and `ctx`.
+
+    `input` is pydantic's copy of the offending value verbatim -- a
+    rejected password, for instance -- and `ctx` can carry a value
+    derived from it; `type`, `loc`, and `msg` never do. Dropping both
+    keeps a 422 body from echoing what the caller submitted.
+    """
+    return [
+        {key: value for key, value in error.items() if key not in _ECHOING_ERROR_KEYS}
+        for error in errors
+    ]
 
 
 def _http_status_title(status_code: int) -> str:
@@ -190,7 +207,8 @@ def install_problem_handlers(app: FastAPI) -> None:
             status=422,
             detail="request body failed validation",
         )
-        return _response(problem, request=request, extra={"errors": exc.errors()})
+        errors = _sanitized_errors(exc.errors())
+        return _response(problem, request=request, extra={"errors": errors})
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:

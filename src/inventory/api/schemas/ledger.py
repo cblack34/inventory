@@ -19,6 +19,7 @@ from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from inventory.api.schemas.ids import Id
 from inventory.db.models import Batch
 from inventory.db.models import Visit as VisitRow
 from inventory.domain.visits import Profit
@@ -29,14 +30,14 @@ from inventory.domain.visits import Profit
 class BakeCountItem(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    size_id: int = Field(ge=1)
+    size_id: Id
     count: int = Field(ge=0)
 
 
 class BatchCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    recipe_id: int = Field(ge=1)
+    recipe_id: Id
     # `strict=False` overrides the model-level `strict=True` for these two
     # fields only: JSON has no date type, and pydantic's *strict* mode --
     # unlike its default lenient mode -- refuses to parse an ISO 8601
@@ -102,9 +103,9 @@ class BatchRead(BaseModel):
 class MovementCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    from_location_id: int = Field(ge=1)
-    to_location_id: int = Field(ge=1)
-    size_id: int = Field(ge=1)
+    from_location_id: Id
+    to_location_id: Id
+    size_id: Id
     quantity: int = Field(ge=1)
 
 
@@ -114,7 +115,7 @@ class MovementCreate(BaseModel):
 class ReversalCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    entry_id: int = Field(ge=1)
+    entry_id: Id
 
 
 class ReversalRead(BaseModel):
@@ -128,7 +129,7 @@ class ReversalRead(BaseModel):
 class StandRowIn(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    size_id: int = Field(ge=1)
+    size_id: Id
     counted: int = Field(ge=0)
     tossed: int = Field(ge=0)
     pulled: int = Field(ge=0)
@@ -138,7 +139,7 @@ class StandRowIn(BaseModel):
 class MarketRowIn(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    size_id: int = Field(ge=1)
+    size_id: Id
     taken: int = Field(ge=0)
     returned: int = Field(ge=0)
     tossed: int = Field(ge=0)
@@ -148,7 +149,7 @@ class StandVisitCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     kind: Literal["stand"]
-    location_id: int = Field(ge=1)
+    location_id: Id
     rows: list[StandRowIn] = Field(default_factory=list[StandRowIn])
     revenue_cents: int = Field(ge=0)
 
@@ -157,7 +158,7 @@ class MarketVisitCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     kind: Literal["market"]
-    location_id: int = Field(ge=1)
+    location_id: Id
     rows: list[MarketRowIn] = Field(default_factory=list[MarketRowIn])
     revenue_cents: int = Field(ge=0)
     fee_cents: int = Field(ge=0)

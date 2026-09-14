@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from inventory.api.auth import require_session
 from inventory.api.deps import read_session
+from inventory.api.schemas.ids import IdPath
 from inventory.api.schemas.ledger import EntryRead
 from inventory.db.queries import history, history_entry
 
@@ -23,5 +24,5 @@ def list_entries(session: Session = Depends(read_session)) -> list[EntryRead]:
 
 
 @router.get("/{entry_id}")
-def get_entry(entry_id: int, session: Session = Depends(read_session)) -> EntryRead:
+def get_entry(entry_id: IdPath, session: Session = Depends(read_session)) -> EntryRead:
     return EntryRead.model_validate(history_entry(session, entry_id))

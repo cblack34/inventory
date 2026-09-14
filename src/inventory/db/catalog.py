@@ -18,6 +18,7 @@ estimate.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from uuid import uuid4
 
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
@@ -357,27 +358,67 @@ def _create_size(session: Session, recipe_id: int, item: SizePatchInput) -> None
     _flush_catching_name_conflict(session, field="name", value=name)
 
 
-def _update_size(session: Session, recipe_id: int, size_id: int, item: SizePatchInput) -> None:
-    size = session.get_one(Size, size_id)
-    if size.recipe_id != recipe_id:
-        raise SizeNotInRecipeError(size_id=size_id, recipe_id=recipe_id)
-    if item.name is not None:
-        size.name = item.name
+def _update_size_fields(size: Size, item: SizePatchInput) -> None:
+    """Set every non-name field `item` patches; the caller handles `name` separately."""
     if item.portion_weight_g is not None:
         size.portion_weight_g = item.portion_weight_g
     if item.price_cents is not None:
         size.price_cents = item.price_cents
     if item.typical_yield_count is not None:
         size.typical_yield_count = item.typical_yield_count
-    _flush_catching_name_conflict(session, field="name", value=size.name)
+
+
+def _load_owned_sizes(
+    session: Session, recipe_id: int, updates: Sequence[tuple[int, SizePatchInput]]
+) -> dict[int, Size]:
+    sizes: dict[int, Size] = {}
+    for size_id, _item in updates:
+        size = session.get_one(Size, size_id)
+        if size.recipe_id != recipe_id:
+            raise SizeNotInRecipeError(size_id=size_id, recipe_id=recipe_id)
+        sizes[size_id] = size
+    return sizes
+
+
+def _apply_size_updates(
+    session: Session, recipe_id: int, updates: Sequence[tuple[int, SizePatchInput]]
+) -> None:
+    """Apply every existing-size patch item's fields, renaming in two flush phases.
+
+    A patch that swaps two sizes' names (A -> B, B -> A) has a
+    collision-free *final* state, but flushing one item's rename at a
+    time would flush an intermediate state where the first renamed
+    size collides with the second size's still-original name. Setting
+    every renamed size to a temporary, guaranteed-unique name first and
+    flushing, then setting every final name and flushing again keeps
+    every intermediate flush collision-free regardless of patch order.
+    Non-name fields carry no UNIQUE constraint, so they are safe to set
+    alongside the final names in the second phase.
+    """
+    sizes = _load_owned_sizes(session, recipe_id, updates)
+    renames = [(size_id, name) for size_id, item in updates if (name := item.name) is not None]
+    if renames:
+        for size_id, _name in renames:
+            sizes[size_id].name = f"__tmp_{size_id}_{uuid4().hex}"
+        session.flush()
+
+    for size_id, item in updates:
+        _update_size_fields(sizes[size_id], item)
+    for size_id, name in renames:
+        sizes[size_id].name = name
+
+    if renames:
+        _flush_catching_name_conflict(session, field="name", value=renames[-1][1])
+    elif updates:
+        session.flush()
 
 
 def _apply_size_patches(session: Session, recipe_id: int, items: Sequence[SizePatchInput]) -> None:
+    updates = [(item.id, item) for item in items if item.id is not None]
+    _apply_size_updates(session, recipe_id, updates)
     for item in items:
         if item.id is None:
             _create_size(session, recipe_id, item)
-        else:
-            _update_size(session, recipe_id, item.id, item)
 
 
 def _reject_duplicate_size_patch_ids(items: Sequence[SizePatchInput]) -> None:

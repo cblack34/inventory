@@ -20,6 +20,7 @@ from inventory.api.schemas.catalog import (
     SizeCreate,
     SizePatchItem,
 )
+from inventory.api.schemas.ids import IdPath
 from inventory.api.stock_context import catalog_errors
 from inventory.db.catalog import (
     RecipeCreateRequest,
@@ -99,7 +100,7 @@ def list_recipes(session: Session = Depends(read_session)) -> list[RecipeRead]:
 
 
 @router.get("/{recipe_id}")
-def get_recipe(recipe_id: int, session: Session = Depends(read_session)) -> RecipeRead:
+def get_recipe(recipe_id: IdPath, session: Session = Depends(read_session)) -> RecipeRead:
     stmt = select(Recipe).where(Recipe.id == recipe_id).options(*_RECIPE_LOAD_OPTIONS)
     row = session.execute(stmt).scalars().one()
     return RecipeRead.from_model(row)
@@ -125,7 +126,7 @@ def create_recipe_route(
 
 @router.patch("/{recipe_id}")
 def update_recipe_route(
-    recipe_id: int, payload: RecipePatch, session: Session = Depends(write_session)
+    recipe_id: IdPath, payload: RecipePatch, session: Session = Depends(write_session)
 ) -> RecipeRead:
     request = RecipePatchRequest(
         name=payload.name,
