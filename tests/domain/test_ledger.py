@@ -99,6 +99,22 @@ def test_allocate_fifo_drains_the_earlier_expiring_batch_first_even_when_baked_l
     assert stock == {(KITCHEN, SIZE, 1): 5, (KITCHEN, SIZE, 2): 4}
 
 
+def test_allocate_fifo_breaks_ties_by_baked_date_then_batch_id() -> None:
+    same_day = date(2026, 9, 20)
+    batches = {
+        3: BatchOrder(batch_id=3, expires=same_day, baked=date(2026, 9, 12)),
+        1: BatchOrder(batch_id=1, expires=same_day, baked=date(2026, 9, 10)),
+        2: BatchOrder(batch_id=2, expires=same_day, baked=date(2026, 9, 10)),
+    }
+    stock: OnHand = {(KITCHEN, SIZE, 3): 1, (KITCHEN, SIZE, 1): 1, (KITCHEN, SIZE, 2): 1}
+
+    allocation = allocate_fifo(stock, KITCHEN, SIZE, 3, batches)
+
+    # Equal expiration: earlier baked wins (1 and 2 before 3); equal baked
+    # as well: lower batch id wins (1 before 2).
+    assert allocation == [(1, 1), (2, 1), (3, 1)]
+
+
 def test_allocate_fifo_raises_insufficient_stock_and_returns_nothing() -> None:
     batches = {1: BatchOrder(batch_id=1, expires=date(2026, 9, 20), baked=date(2026, 9, 10))}
     stock: OnHand = {(KITCHEN, SIZE, 1): 3}
