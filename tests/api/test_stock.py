@@ -8,8 +8,14 @@ from datetime import date
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from inventory.api.deps import today
+from inventory.db.builtins import load_builtin_locations
+from inventory.db.models import Movement as MovementRow
+from inventory.domain.ledger import Movement as LedgerMovement
+from inventory.domain.ledger import on_hand
 from tests.api.ledger_helpers import (
     bake,
     builtin_location_id,
@@ -21,7 +27,41 @@ from tests.api.ledger_helpers import (
 from tests.api.probes import login
 
 
-def test_stock_matches_an_independent_fold_over_the_movements_made(client: TestClient) -> None:
+def _independent_fold_by_location_and_size(app: FastAPI) -> dict[tuple[int, int], int]:
+    """On-hand per (location, size), folded straight from the `movement` table.
+
+    Opens its own `Session` on the app's engine and walks
+    `inventory.domain.ledger.on_hand` over `Movement` dataclasses built
+    from the raw rows -- not through `inventory.db.queries.stock_by_location`,
+    the code path `GET /api/v1/stock` itself uses -- so a bug shared by
+    both paths can't cancel out against a hard-coded expected number.
+    """
+    with Session(app.state.engine) as session:
+        inventory_location_ids = load_builtin_locations(session).locations.inventory_location_ids
+        rows = session.execute(select(MovementRow)).scalars().all()
+        movements = [
+            LedgerMovement(
+                id=row.id,
+                batch_id=row.batch_id,
+                size_id=row.size_id,
+                from_location_id=row.from_location_id,
+                to_location_id=row.to_location_id,
+                quantity=row.quantity,
+            )
+            for row in rows
+        ]
+        stock = on_hand(movements, inventory_location_ids)
+
+    totals: dict[tuple[int, int], int] = {}
+    for (location_id, size_id, _batch_id), quantity in stock.items():
+        key = (location_id, size_id)
+        totals[key] = totals.get(key, 0) + quantity
+    return totals
+
+
+def test_stock_matches_an_independent_fold_over_the_movements_made(
+    app: FastAPI, client: TestClient
+) -> None:
     login(client)
     recipe = create_recipe(
         client,
@@ -49,19 +89,20 @@ def test_stock_matches_an_independent_fold_over_the_movements_made(client: TestC
     assert move_response.status_code == 201
 
     stock = client.get("/api/v1/stock").json()
-    quantities_by_location_kind = {location["kind"]: location["sizes"] for location in stock}
+    expected = _independent_fold_by_location_and_size(app)
 
-    kitchen_quantity = next(
-        s["quantity"] for s in quantities_by_location_kind["kitchen"] if s["size_id"] == size_id
-    )
-    stand_quantity = next(
-        s["quantity"] for s in quantities_by_location_kind["stand"] if s["size_id"] == size_id
-    )
+    seen_keys: set[tuple[int, int]] = set()
+    for location in stock:
+        for size in location["sizes"]:
+            key = (location["location_id"], size["size_id"])
+            seen_keys.add(key)
+            assert size["quantity"] == expected.get(key, 0)
 
-    # Independent fold: baked 5, moved 2 to the stand -- 5 - 2 = 3 remain at
-    # Kitchen, and the 2 moved are the stand's entire on-hand.
-    assert kitchen_quantity == 3
-    assert stand_quantity == 2
+    # Every nonzero fold entry showed up somewhere in the endpoint's
+    # response -- not just every entry the endpoint reported matching the
+    # fold, which alone would pass even if the endpoint silently dropped a
+    # location or size.
+    assert seen_keys == {key for key, quantity in expected.items() if quantity != 0}
 
 
 def test_terminal_locations_never_appear_in_stock(client: TestClient) -> None:

@@ -136,6 +136,49 @@ def test_counted_exceeding_on_hand_is_rejected_naming_size_on_hand_and_counted(
     assert body["counted"] == 5
 
 
+def test_added_exceeding_kitchen_stock_is_rejected_naming_recipe_size_and_location(
+    client: TestClient,
+) -> None:
+    login(client)
+    recipe = create_recipe(
+        client,
+        sizes=[
+            {"name": "Only", "portion_weight_g": 10, "price_cents": 100, "typical_yield_count": 1}
+        ],
+    )
+    size_id = recipe["sizes"][0]["id"]
+    bake(
+        client,
+        recipe_id=recipe["id"],
+        baked="2026-01-01",
+        expires="2026-01-10",
+        counts=[{"size_id": size_id, "count": 2}],
+    )
+    stand = create_location(client, "stand", "Stand")
+    kitchen = kitchen_id(client)
+
+    response = client.post(
+        "/api/v1/visits",
+        json={
+            "kind": "stand",
+            "location_id": stand["id"],
+            "rows": [stand_row(size_id, added=5)],
+            "revenue_cents": 0,
+        },
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["location_id"] == kitchen
+    assert body["size_id"] == size_id
+    assert body["on_hand"] == 2
+    assert body["requested"] == 5
+    assert body["recipe_id"] == recipe["id"]
+    assert body["recipe_name"] == recipe["name"]
+    assert body["size_name"] == "Only"
+    assert body["location_name"] == "Kitchen"
+
+
 def test_tossed_plus_pulled_exceeding_counted_is_rejected_naming_the_size(
     client: TestClient,
 ) -> None:

@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from inventory.api.auth import require_session
 from inventory.api.deps import now, read_session, write_session
 from inventory.api.schemas.ledger import MarketVisitCreate, StandVisitCreate, VisitCreate, VisitRead
+from inventory.api.stock_context import with_stock_context
 from inventory.db.models import Entry, Location
 from inventory.db.models import Visit as VisitRow
 from inventory.db.visits import (
@@ -26,6 +27,7 @@ from inventory.db.visits import (
     record_stand_visit,
     visit_profit,
 )
+from inventory.domain.ledger import InsufficientStock
 from inventory.domain.visits import MarketRow, StandRow
 
 router = APIRouter(prefix="/visits", tags=["visits"], dependencies=[Depends(require_session)])
@@ -77,10 +79,13 @@ def create_visit(
     session: Session = Depends(write_session),
     moment: datetime = Depends(now),
 ) -> VisitRead:
-    if payload.kind == "stand":
-        entry_id = _record_stand(session, payload, moment)
-    else:
-        entry_id = _record_market(session, payload, moment)
+    try:
+        if payload.kind == "stand":
+            entry_id = _record_stand(session, payload, moment)
+        else:
+            entry_id = _record_market(session, payload, moment)
+    except InsufficientStock as exc:
+        raise with_stock_context(session, exc) from None
     return _visit_read(session, entry_id, voided=False)
 
 

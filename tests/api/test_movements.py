@@ -56,6 +56,10 @@ def test_move_exceeding_on_hand_returns_422_with_fields_and_writes_nothing(
     assert body["size_id"] == size_id
     assert body["on_hand"] == 2
     assert body["requested"] == 5
+    assert body["recipe_id"] == recipe["id"]
+    assert body["recipe_name"] == recipe["name"]
+    assert body["size_name"] == "Only"
+    assert body["location_name"] == "Kitchen"
 
     entries_after = client.get("/api/v1/entries").json()
     assert entries_after == entries_before

@@ -3,8 +3,13 @@
 `docs/acceptance.md`, "Profit" (the home-screen history bullet).
 """
 
+from collections.abc import Iterator
+from datetime import UTC, datetime
+
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from inventory.api.deps import now
 from tests.api.ledger_helpers import (
     bake,
     create_location,
@@ -79,6 +84,72 @@ def test_entries_list_newest_first_with_full_shape(client: TestClient) -> None:
     # baked units of the one size gives a 50-cent unit cost; one unit is
     # missing (on-hand 1, counted 0) and sells, so profit is 300 - 50.
     assert visit_entry["profit_cents"] == 250
+
+
+def test_entries_are_ordered_by_created_at_not_by_id(app: FastAPI, client: TestClient) -> None:
+    """Three entries created id 1, 2, 3 with timestamps out of id order.
+
+    Entry 1 (the bake) gets the latest timestamp, entry 2 (the first
+    move) the earliest, and entry 3 (the second move) the middle one, so
+    the only way `GET /entries` can come back `[1, 3, 2]` is by sorting
+    on `created_at` -- ascending or descending id order would both give
+    a different sequence.
+    """
+    login(client)
+    recipe = create_recipe(
+        client,
+        sizes=[
+            {"name": "Only", "portion_weight_g": 10, "price_cents": 100, "typical_yield_count": 1}
+        ],
+    )
+    size_id = recipe["sizes"][0]["id"]
+    stand = create_location(client, "stand", "Stand")
+
+    times: Iterator[datetime] = iter(
+        [
+            datetime(2026, 1, 3, tzinfo=UTC),  # entry 1 (bake): latest
+            datetime(2026, 1, 1, tzinfo=UTC),  # entry 2 (move): earliest
+            datetime(2026, 1, 2, tzinfo=UTC),  # entry 3 (move): middle
+        ]
+    )
+    app.dependency_overrides[now] = lambda: next(times)
+    try:
+        bake_response = bake(
+            client,
+            recipe_id=recipe["id"],
+            baked="2026-01-01",
+            expires="2026-01-10",
+            counts=[{"size_id": size_id, "count": 3}],
+        )
+        kitchen = kitchen_id(client)
+        move_one = move(
+            client,
+            from_location_id=kitchen,
+            to_location_id=stand["id"],
+            size_id=size_id,
+            quantity=1,
+        )
+        move_two = move(
+            client,
+            from_location_id=kitchen,
+            to_location_id=stand["id"],
+            size_id=size_id,
+            quantity=1,
+        )
+    finally:
+        app.dependency_overrides.pop(now, None)
+
+    bake_id = bake_response["entry_id"]
+    move_one_id = move_one.json()["entry_id"]
+    move_two_id = move_two.json()["entry_id"]
+    assert (bake_id, move_one_id, move_two_id) == (1, 2, 3)
+
+    entries = client.get("/api/v1/entries").json()
+    ids_in_order = [entry["entry_id"] for entry in entries]
+
+    assert ids_in_order == [bake_id, move_two_id, move_one_id]
+    assert ids_in_order != sorted(ids_in_order)
+    assert ids_in_order != sorted(ids_in_order, reverse=True)
 
 
 def test_get_single_entry_matches_the_list_entry(client: TestClient) -> None:

@@ -172,9 +172,10 @@ def test_manual_drain_after_a_visit_blocks_undo_of_that_visit_with_nothing_chang
         for location in client.get("/api/v1/locations").json()
         if location["kind"] == "waste"
     )
+    kitchen = kitchen_id(client)
     drain = move(
         client,
-        from_location_id=kitchen_id(client),
+        from_location_id=kitchen,
         to_location_id=waste_id,
         size_id=size_id,
         quantity=3,
@@ -186,6 +187,13 @@ def test_manual_drain_after_a_visit_blocks_undo_of_that_visit_with_nothing_chang
     undo_response = client.post("/api/v1/reversals", json={"entry_id": entry_id})
 
     assert undo_response.status_code == 422
+    body = undo_response.json()
+    assert body["location_id"] == kitchen
+    assert body["size_id"] == size_id
+    assert body["recipe_id"] == recipe["id"]
+    assert body["recipe_name"] == recipe["name"]
+    assert body["size_name"] == "Only"
+    assert body["location_name"] == "Kitchen"
     entries_after = client.get("/api/v1/entries").json()
     assert entries_after == entries_before
     visit_entry = next(entry for entry in entries_after if entry["entry_id"] == entry_id)
