@@ -36,9 +36,10 @@ def _domain_dataclasses() -> list[type]:
 
 def test_no_domain_dataclass_field_is_float_or_decimal() -> None:
     dataclass_types = _domain_dataclasses()
-    # Sanity check: this test is only meaningful if it actually found the
-    # dataclasses this leaf and its siblings define.
-    assert len(dataclass_types) >= 5
+    # Sanity check: the walk must reach every domain module, including the
+    # ones this leaf adds, or the assertion below passes vacuously.
+    found_names = {dataclass_type.__qualname__ for dataclass_type in dataclass_types}
+    assert {"SizeYield", "Movement", "StandRow", "MarketRow", "Profit"} <= found_names
 
     offenders: list[str] = []
     for dataclass_type in dataclass_types:

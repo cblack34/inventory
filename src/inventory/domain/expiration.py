@@ -3,7 +3,7 @@
 See ``docs/data-model.md``, "Expiration". `today` is the caller's
 responsibility to obtain from the injected clock in the business's
 configured timezone; this module takes it as a plain argument so it stays
-pure and untestable-by-wallclock.
+pure and deterministic, testable without touching the wall clock.
 """
 
 from datetime import date
