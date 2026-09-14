@@ -6,8 +6,6 @@ never touch the real environment, and so `inventory.__main__` can fail
 fast on bad configuration before ever constructing the app.
 """
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo

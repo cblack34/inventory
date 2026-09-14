@@ -51,7 +51,7 @@ class Ingredient(Base):
     current_price_cents: Mapped[int] = mapped_column(nullable=False)
     active: Mapped[bool] = mapped_column(nullable=False, default=True)
 
-    recipe_lines: Mapped[list["RecipeLine"]] = relationship(back_populates="ingredient")
+    recipe_lines: Mapped[list[RecipeLine]] = relationship(back_populates="ingredient")
 
 
 class Recipe(Base):
@@ -64,9 +64,9 @@ class Recipe(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     shelf_life_days: Mapped[int] = mapped_column(nullable=False)
 
-    lines: Mapped[list["RecipeLine"]] = relationship(back_populates="recipe")
-    sizes: Mapped[list["Size"]] = relationship(back_populates="recipe")
-    batches: Mapped[list["Batch"]] = relationship(back_populates="recipe")
+    lines: Mapped[list[RecipeLine]] = relationship(back_populates="recipe")
+    sizes: Mapped[list[Size]] = relationship(back_populates="recipe")
+    batches: Mapped[list[Batch]] = relationship(back_populates="recipe")
 
 
 class RecipeLine(Base):
@@ -103,7 +103,7 @@ class Size(Base):
     typical_yield_count: Mapped[int] = mapped_column(nullable=False)
 
     recipe: Mapped[Recipe] = relationship(back_populates="sizes")
-    batch_sizes: Mapped[list["BatchSize"]] = relationship(back_populates="size")
+    batch_sizes: Mapped[list[BatchSize]] = relationship(back_populates="size")
 
 
 class Location(Base):
@@ -132,9 +132,9 @@ class Entry(Base):
         ForeignKey("entry.id"), nullable=True, unique=True
     )
 
-    batch: Mapped["Batch | None"] = relationship(back_populates="entry", uselist=False)
-    visit: Mapped["Visit | None"] = relationship(back_populates="entry", uselist=False)
-    movements: Mapped[list["Movement"]] = relationship(back_populates="entry")
+    batch: Mapped[Batch | None] = relationship(back_populates="entry", uselist=False)
+    visit: Mapped[Visit | None] = relationship(back_populates="entry", uselist=False)
+    movements: Mapped[list[Movement]] = relationship(back_populates="entry")
 
 
 class Batch(Base):
@@ -155,7 +155,7 @@ class Batch(Base):
 
     recipe: Mapped[Recipe] = relationship(back_populates="batches")
     entry: Mapped[Entry] = relationship(back_populates="batch")
-    batch_sizes: Mapped[list["BatchSize"]] = relationship(back_populates="batch")
+    batch_sizes: Mapped[list[BatchSize]] = relationship(back_populates="batch")
 
 
 class BatchSize(Base):

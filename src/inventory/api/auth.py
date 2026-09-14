@@ -8,8 +8,6 @@ cookie once `max_age` has passed on every request); nothing here
 hand-rolls signing.
 """
 
-from __future__ import annotations
-
 import math
 import secrets
 import threading

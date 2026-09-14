@@ -9,8 +9,6 @@ message that names the offending variable, for `__main__` to print to
 stderr.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
