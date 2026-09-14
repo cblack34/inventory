@@ -8,7 +8,7 @@ disabled `/openapi.json` stays 404.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tests.api.probes import add_protected_probe
+from tests.api.probes import add_protected_probe, login
 
 
 def test_unauthenticated_app_route_redirects_to_login(app: FastAPI) -> None:
@@ -50,3 +50,53 @@ def test_openapi_json_stays_404(client: TestClient) -> None:
 def test_docs_and_redoc_stay_404(client: TestClient) -> None:
     assert client.get("/docs").status_code == 404
     assert client.get("/redoc").status_code == 404
+
+
+def test_disabled_doc_routes_with_a_trailing_slash_stay_404_unauthenticated(
+    client: TestClient,
+) -> None:
+    assert client.get("/docs/").status_code == 404
+    assert client.get("/redoc/").status_code == 404
+    assert client.get("/openapi.json/").status_code == 404
+
+
+def test_disabled_doc_routes_with_a_trailing_slash_stay_404_authenticated(
+    client: TestClient,
+) -> None:
+    login(client)
+
+    assert client.get("/docs/").status_code == 404
+    assert client.get("/redoc/").status_code == 404
+    assert client.get("/openapi.json/").status_code == 404
+
+
+def test_root_level_dist_file_is_public_unauthenticated(client: TestClient) -> None:
+    response = client.get("/favicon.svg")
+
+    assert response.status_code == 200
+    assert response.text == "<svg></svg>"
+
+
+def test_root_level_dist_file_is_public_authenticated(client: TestClient) -> None:
+    login(client)
+
+    response = client.get("/favicon.svg")
+
+    assert response.status_code == 200
+    assert response.text == "<svg></svg>"
+
+
+def test_path_traversal_cannot_escape_the_dist_directory(client: TestClient) -> None:
+    response = client.get("/../pyproject.toml", follow_redirects=False)
+
+    assert response.status_code in (303, 404)
+    assert "[project]" not in response.text
+
+
+def test_authenticated_app_route_serves_the_spa_shell(client: TestClient) -> None:
+    login(client)
+
+    response = client.get("/recipes")
+
+    assert response.status_code == 200
+    assert "inventory" in response.text

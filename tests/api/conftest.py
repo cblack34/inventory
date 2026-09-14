@@ -57,6 +57,7 @@ def dist_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     assets.mkdir(parents=True)
     (dist / "index.html").write_text("<html><body>inventory</body></html>")
     (assets / "x.js").write_text("export {};")
+    (dist / "favicon.svg").write_text("<svg></svg>")
     monkeypatch.setattr("inventory.api.static._DIST_DIR", dist)
     return dist
 

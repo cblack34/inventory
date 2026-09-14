@@ -10,9 +10,11 @@ hand-rolls signing.
 
 from __future__ import annotations
 
+import math
 import secrets
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable
 
 from fastapi import APIRouter, FastAPI, Request, Response
@@ -44,7 +46,7 @@ class LoginThrottle:
     """
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
-        self._failures: dict[str, list[float]] = {}
+        self._failures: OrderedDict[str, list[float]] = OrderedDict()
         self._clock = clock
         self._lock = threading.Lock()
 
@@ -62,6 +64,19 @@ class LoginThrottle:
         for ip in list(self._failures):
             self._recent_failures_locked(ip, now=now)
 
+    def _evict_oldest_locked(self) -> None:
+        """Drop the least-recently-touched IPs until the dict is back at the ceiling.
+
+        The sweep above only removes IPs whose failures have aged out; an
+        attacker flooding distinct IPs faster than the window elapses
+        never ages out, so this is the actual memory bound. Dropping the
+        oldest-touched IP just gives that IP a fresh window early -- the
+        right failure mode under attack (see the ponytail note on
+        `_SWEEP_CEILING` above for the upgrade path).
+        """
+        while len(self._failures) > _SWEEP_CEILING:
+            self._failures.popitem(last=False)
+
     def retry_after_seconds(self, ip: str) -> int | None:
         """Seconds until `ip`'s window clears, or `None` if it is not currently throttled."""
         now = self._clock()
@@ -69,16 +84,19 @@ class LoginThrottle:
             recent = self._recent_failures_locked(ip, now=now)
         if len(recent) < _MAX_FAILURES:
             return None
-        return max(1, round(_THROTTLE_WINDOW_SECONDS - (now - min(recent))))
+        return max(1, math.ceil(_THROTTLE_WINDOW_SECONDS - (now - min(recent))))
 
     def record_failure(self, ip: str) -> None:
         now = self._clock()
         with self._lock:
-            if len(self._failures) > _SWEEP_CEILING:
-                self._sweep_locked(now)
             recent = self._recent_failures_locked(ip, now=now)
             recent.append(now)
             self._failures[ip] = recent
+            self._failures.move_to_end(ip)
+            if len(self._failures) > _SWEEP_CEILING:
+                self._sweep_locked(now)
+            if len(self._failures) > _SWEEP_CEILING:
+                self._evict_oldest_locked()
 
     def clear(self, ip: str) -> None:
         with self._lock:

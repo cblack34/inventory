@@ -10,6 +10,7 @@ fields as extension members, and a validation rejection carries an
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any
 
@@ -64,6 +65,19 @@ def _slug(class_name: str) -> str:
 def _humanize(class_name: str) -> str:
     """`InsufficientStock` -> `Insufficient Stock`."""
     return _CAMEL_BOUNDARY.sub(" ", class_name.removesuffix("Error"))
+
+
+def _detail_or_none(detail: object) -> str | None:
+    """`exc.detail` as a Problem `detail`, never the literal string `"None"`.
+
+    `HTTPException.detail` is typed `Any` and defaults to `None` for a
+    bare `HTTPException(status_code=...)` call; falling through to
+    `str(None)` would render the four-character string `"None"` in the
+    response body instead of leaving `detail` empty.
+    """
+    if not detail:
+        return None
+    return str(detail)
 
 
 def _http_status_title(status_code: int) -> str:
@@ -129,12 +143,21 @@ def _register_problem_schema(app: FastAPI) -> None:
 
 
 def _response(
-    problem: Problem, *, request: Request, extra: dict[str, object] | None = None
+    problem: Problem,
+    *,
+    request: Request,
+    extra: dict[str, object] | None = None,
+    headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     body: dict[str, object] = problem.model_copy(update={"instance": request.url.path}).model_dump()
     if extra:
         body.update(jsonable_encoder(extra))
-    return JSONResponse(status_code=problem.status, content=body, media_type=_PROBLEM_MEDIA_TYPE)
+    return JSONResponse(
+        status_code=problem.status,
+        content=body,
+        media_type=_PROBLEM_MEDIA_TYPE,
+        headers=headers,
+    )
 
 
 def install_problem_handlers(app: FastAPI) -> None:
@@ -187,15 +210,15 @@ def install_problem_handlers(app: FastAPI) -> None:
                 type=exc.type,
                 title=exc.title,
                 status=exc.status_code,
-                detail=str(exc.detail),
+                detail=_detail_or_none(exc.detail),
             )
-            return _response(problem, request=request, extra=exc.extra)
+            return _response(problem, request=request, extra=exc.extra, headers=exc.headers)
         problem = Problem(
             type=_PROBLEM_URN_PREFIX + f"http-{exc.status_code}",
             title=_http_status_title(exc.status_code),
             status=exc.status_code,
-            detail=str(exc.detail),
+            detail=_detail_or_none(exc.detail),
         )
-        return _response(problem, request=request)
+        return _response(problem, request=request, headers=exc.headers)
 
     _register_problem_schema(app)

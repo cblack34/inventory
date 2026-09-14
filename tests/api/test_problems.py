@@ -80,6 +80,26 @@ def test_method_not_allowed_becomes_a_problem(client: TestClient) -> None:
     Problem.model_validate(response.json())
 
 
+def test_method_not_allowed_preserves_the_allow_header(client: TestClient) -> None:
+    """Starlette attaches `Allow` to its own 405 `HTTPException`; it must survive translation."""
+    response = client.put("/api/v1/session")
+
+    assert response.status_code == 405
+    assert "post" in response.headers["allow"].lower()
+
+
+def test_disabled_docs_404_never_shows_the_literal_string_none_as_detail(
+    client: TestClient,
+) -> None:
+    response = client.get("/docs")
+
+    assert response.status_code == 404
+    body = response.json()
+    Problem.model_validate(body)
+    assert body["detail"] != "None"
+    assert body["detail"] == "Not Found"
+
+
 def test_no_result_found_becomes_404_problem(app: FastAPI) -> None:
     add_not_found_probe(app)
 
