@@ -344,15 +344,36 @@ def visit_profit(
     sums it. Profit may be negative (for example when `fee_cents` exceeds
     `revenue_cents`).
     """
-    sold_cost_cents = _cost_to(movements, locations.sold_id, unit_costs_cents)
-    waste_cost_cents = _cost_to(movements, locations.waste_id, unit_costs_cents)
-    sampled_cost_cents = _cost_to(movements, locations.sampled_id, unit_costs_cents)
-    profit_cents = (
-        revenue_cents - fee_cents - sold_cost_cents - waste_cost_cents - sampled_cost_cents
+    return profit_from_costs(
+        revenue_cents=revenue_cents,
+        fee_cents=fee_cents,
+        sold_cost_cents=_cost_to(movements, locations.sold_id, unit_costs_cents),
+        waste_cost_cents=_cost_to(movements, locations.waste_id, unit_costs_cents),
+        sampled_cost_cents=_cost_to(movements, locations.sampled_id, unit_costs_cents),
     )
+
+
+def profit_from_costs(
+    *,
+    revenue_cents: int,
+    fee_cents: int,
+    sold_cost_cents: int,
+    waste_cost_cents: int,
+    sampled_cost_cents: int,
+) -> Profit:
+    """The one home of `profit = revenue - fee - sold - waste - sampled`.
+
+    `visit_profit` derives the three cost lines from movements; a caller
+    that already has them aggregated (for example a bulk history query)
+    calls this directly so both paths share the rule.
+    """
     return Profit(
         sold_cost_cents=sold_cost_cents,
         waste_cost_cents=waste_cost_cents,
         sampled_cost_cents=sampled_cost_cents,
-        profit_cents=profit_cents,
+        profit_cents=revenue_cents
+        - fee_cents
+        - sold_cost_cents
+        - waste_cost_cents
+        - sampled_cost_cents,
     )

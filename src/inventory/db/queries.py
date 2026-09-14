@@ -27,7 +27,7 @@ from inventory.db.models import Visit as VisitRow
 from inventory.db.stock import load_stock
 from inventory.domain.expiration import ExpiryState, expiry_state
 from inventory.domain.ledger import BatchOrder, OnHand
-from inventory.domain.visits import Locations
+from inventory.domain.visits import Locations, profit_from_costs
 
 
 @dataclass(frozen=True)
@@ -216,10 +216,13 @@ def _visit_costs_by_entry(
 def _visit_profit_cents(
     visit_row: VisitRow, costs_by_location: Mapping[int, int], locations: Locations
 ) -> int:
-    sold = costs_by_location.get(locations.sold_id, 0)
-    waste = costs_by_location.get(locations.waste_id, 0)
-    sampled = costs_by_location.get(locations.sampled_id, 0)
-    return visit_row.revenue_cents - visit_row.fee_cents - sold - waste - sampled
+    return profit_from_costs(
+        revenue_cents=visit_row.revenue_cents,
+        fee_cents=visit_row.fee_cents,
+        sold_cost_cents=costs_by_location.get(locations.sold_id, 0),
+        waste_cost_cents=costs_by_location.get(locations.waste_id, 0),
+        sampled_cost_cents=costs_by_location.get(locations.sampled_id, 0),
+    ).profit_cents
 
 
 def _history_entry(

@@ -19,6 +19,7 @@ from inventory.domain.visits import (
     StandRow,
     plan_market_visit,
     plan_stand_visit,
+    profit_from_costs,
     visit_profit,
 )
 
@@ -316,3 +317,23 @@ class TestVisitProfit:
 
         assert profit.profit_cents == 10 - 100 - 5
         assert profit.profit_cents < 0
+
+
+def test_profit_from_costs_is_the_rule_visit_profit_uses() -> None:
+    assert profit_from_costs(
+        revenue_cents=1000,
+        fee_cents=200,
+        sold_cost_cents=300,
+        waste_cost_cents=50,
+        sampled_cost_cents=25,
+    ) == Profit(sold_cost_cents=300, waste_cost_cents=50, sampled_cost_cents=25, profit_cents=425)
+    assert (
+        profit_from_costs(
+            revenue_cents=100,
+            fee_cents=250,
+            sold_cost_cents=0,
+            waste_cost_cents=0,
+            sampled_cost_cents=0,
+        ).profit_cents
+        == -150
+    )

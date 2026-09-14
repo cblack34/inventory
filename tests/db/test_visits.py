@@ -16,6 +16,7 @@ from inventory.db.models import Entry, Location, Size
 from inventory.db.models import Movement as MovementRow
 from inventory.db.models import Visit as VisitRow
 from inventory.db.visits import (
+    DuplicateSizeError,
     EntryIsNotAVisitError,
     InvalidQuantityError,
     InvalidVisitLocationError,
@@ -267,6 +268,52 @@ def test_record_stand_visit_rejects_a_negative_row_field_and_writes_nothing(
                     stand_id=stand_and_market.stand_id,
                     rows=[StandRow(size_id=single_size_recipe.size_id, **row_fields)],
                     revenue_cents=0,
+                ),
+                now=_NOW,
+            )
+
+    with Session(engine) as session:
+        assert _row_counts(session) == before
+
+
+def test_visits_reject_duplicate_size_rows_and_write_nothing(
+    engine: Engine, single_size_recipe: SingleSizeRecipe, stand_and_market: StandAndMarket
+) -> None:
+    with Session(engine) as session:
+        _bake(session, single_size_recipe.recipe_id, {single_size_recipe.size_id: 10})
+        _transfer(
+            session,
+            size_id=single_size_recipe.size_id,
+            to_location_id=stand_and_market.stand_id,
+            quantity=5,
+        )
+
+    size_id = single_size_recipe.size_id
+    stand_rows = [
+        StandRow(size_id=size_id, counted=5, tossed=0, pulled=0, added=0),
+        StandRow(size_id=size_id, counted=4, tossed=0, pulled=0, added=0),
+    ]
+    market_rows = [
+        MarketRow(size_id=size_id, taken=2, returned=2, tossed=0),
+        MarketRow(size_id=size_id, taken=1, returned=1, tossed=0),
+    ]
+
+    with Session(engine) as session:
+        before = _row_counts(session)
+        with pytest.raises(DuplicateSizeError):
+            record_stand_visit(
+                session,
+                StandVisit(stand_id=stand_and_market.stand_id, rows=stand_rows, revenue_cents=0),
+                now=_NOW,
+            )
+        with pytest.raises(DuplicateSizeError):
+            record_market_visit(
+                session,
+                MarketVisit(
+                    market_id=stand_and_market.market_id,
+                    rows=market_rows,
+                    revenue_cents=0,
+                    fee_cents=0,
                 ),
                 now=_NOW,
             )

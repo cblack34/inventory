@@ -36,6 +36,14 @@ from inventory.domain.visits import (
 from inventory.domain.visits import visit_profit as _domain_visit_profit
 
 
+class DuplicateSizeError(DomainError):
+    """A visit payload names the same size in more than one row."""
+
+    def __init__(self, *, size_id: int) -> None:
+        self.size_id = size_id
+        super().__init__(f"size {size_id} appears more than once in the visit rows")
+
+
 class InvalidVisitLocationError(DomainError):
     """A visit named a location that is missing, the wrong kind, or inactive.
 
@@ -95,14 +103,20 @@ def _require_visit_location(session: Session, *, location_id: int, expected_kind
         raise InvalidVisitLocationError(location_id=location_id, expected_kind=expected_kind)
 
 
-def _require_non_negative_rows(
+def _require_valid_rows(
     rows: Sequence[StandRow] | Sequence[MarketRow], fields: tuple[str, ...]
 ) -> None:
-    """Raise `InvalidQuantityError` on the first negative field of any row.
+    """Reject duplicate size ids and negative fields before any DB read.
 
-    Runs before any DB read so a rejected visit never touches `entry`,
-    `visit`, or `movement`.
+    A duplicate would be silently merged or dropped by the planner, so it
+    is rejected rather than interpreted. Runs first so a rejected visit
+    never touches `entry`, `visit`, or `movement`.
     """
+    seen: set[int] = set()
+    for row in rows:
+        if row.size_id in seen:
+            raise DuplicateSizeError(size_id=row.size_id)
+        seen.add(row.size_id)
     for row in rows:
         for name in fields:
             value: int = getattr(row, name)
@@ -169,7 +183,7 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
-    _require_non_negative_rows(visit.rows, ("counted", "tossed", "pulled", "added"))
+    _require_valid_rows(visit.rows, ("counted", "tossed", "pulled", "added"))
     _require_visit_location(session, location_id=visit.stand_id, expected_kind="stand")
 
     context = _build_context(session)
@@ -201,7 +215,7 @@ def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) 
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
     if visit.fee_cents < 0:
         raise InvalidQuantityError(field="fee_cents", value=visit.fee_cents, minimum=0)
-    _require_non_negative_rows(visit.rows, ("taken", "returned", "tossed"))
+    _require_valid_rows(visit.rows, ("taken", "returned", "tossed"))
     _require_visit_location(session, location_id=visit.market_id, expected_kind="market")
 
     context = _build_context(session)
