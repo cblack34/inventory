@@ -251,11 +251,12 @@ def _history_entry(
 def history(session: Session) -> list[HistoryEntry]:
     """Every entry, newest first; revenue and profit only for non-voided visits.
 
-    `revenue_cents` reflects a voided visit's stored figure -- undo does
-    not erase the cash that was actually collected -- but `profit_cents`
-    is `None` for a voided visit: `docs/data-model.md`, "Profit" says a
-    voided visit "shows no profit figure in history ... and is excluded
-    from any profit or revenue totals."
+    A voided visit reports `None` for both `revenue_cents` and
+    `profit_cents`: `docs/data-model.md`, "Profit" says a voided visit
+    "shows no profit figure in history ... and is excluded from any
+    profit or revenue totals", and withholding the figure is what keeps a
+    consumer from summing it by accident. The stored `visit` row and the
+    original movements remain in the database for audit.
 
     Runs a bounded number of queries regardless of how many entries or
     visits exist: one for every entry, one for every visit row, one
