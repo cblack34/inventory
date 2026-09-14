@@ -50,6 +50,20 @@ class SizeNotInRecipeError(DomainError):
         super().__init__(f"size {size_id} does not belong to recipe {recipe_id}")
 
 
+class DuplicateSizePatchError(DomainError):
+    """A `sizes` patch list named the same existing size `id` more than once.
+
+    Caught before any other validation or write: `_prospective_size_yields`
+    below merges patch items into a dict keyed by `id`, which would
+    otherwise silently keep only the last duplicate and drop the rest
+    of the caller's intent.
+    """
+
+    def __init__(self, *, size_id: int) -> None:
+        self.size_id = size_id
+        super().__init__(f"size {size_id} appears more than once in the same patch")
+
+
 class IncompleteSizeError(DomainError):
     """A new-size patch item (no `id`) is missing a required field."""
 
@@ -238,7 +252,12 @@ def _reject_zero_typical_weight(yields: Sequence[SizeYield]) -> None:
 
 
 def _replace_lines(session: Session, recipe_id: int, lines: Sequence[RecipeLineInput]) -> None:
-    _reject_unknown_ingredients(session, lines)
+    """Delete and re-insert `recipe_id`'s lines; the caller already validated `lines`.
+
+    `update_recipe` runs every pure validation, including
+    `_reject_unknown_ingredients`, before calling this -- so this is a
+    write-only step, not a second copy of that check.
+    """
     session.execute(delete(RecipeLineRow).where(RecipeLineRow.recipe_id == recipe_id))
     for line in lines:
         session.add(
@@ -343,6 +362,42 @@ def _apply_size_patches(session: Session, recipe_id: int, items: Sequence[SizePa
             _update_size(session, recipe_id, item.id, item)
 
 
+def _reject_duplicate_size_patch_ids(items: Sequence[SizePatchInput]) -> None:
+    """Reject a `sizes` patch that names the same existing size `id` more than once.
+
+    Runs before every other validation and before any write: a
+    duplicate `id` would otherwise reach `_prospective_size_yields`'s
+    `{item.id: item}` merge, which keeps only the last occurrence and
+    silently drops the rest of the patch's intent for that size.
+    """
+    seen: set[int] = set()
+    for item in items:
+        if item.id is None:
+            continue
+        if item.id in seen:
+            raise DuplicateSizePatchError(size_id=item.id)
+        seen.add(item.id)
+
+
+def _reject_duplicate_new_size_names(items: Sequence[SizePatchInput]) -> None:
+    """Reject two new-size items (`id` absent) sharing a case-insensitive name in one patch.
+
+    The `uq_size_recipe_name` UNIQUE constraint would eventually catch
+    this too (via `_flush_catching_name_conflict`, on the second new
+    size's flush), but only after the first new size's row is already
+    added to the session -- this rejects the whole patch before either
+    write is attempted.
+    """
+    seen: set[str] = set()
+    for item in items:
+        if item.id is not None or item.name is None:
+            continue
+        key = item.name.casefold()
+        if key in seen:
+            raise NameConflictError(field="name", value=item.name)
+        seen.add(key)
+
+
 def _prospective_size_yields(
     session: Session, recipe_id: int, items: Sequence[SizePatchInput]
 ) -> list[SizeYield]:
@@ -386,9 +441,37 @@ def _prospective_size_yields(
     return yields
 
 
+def _validate_recipe_patch(session: Session, recipe_id: int, request: RecipePatchRequest) -> None:
+    """Every pure check `update_recipe` must pass before it writes anything.
+
+    Duplicate-size-id and duplicate-new-size-name checks run first and
+    need no query -- a duplicate would otherwise corrupt
+    `_prospective_size_yields`'s `id`-keyed merge or the later flush
+    order, so both are caught before either that check or any write
+    runs. Unknown-ingredient and zero-weight checks follow, each read-only.
+    """
+    if request.sizes is not None:
+        _reject_duplicate_size_patch_ids(request.sizes)
+        _reject_duplicate_new_size_names(request.sizes)
+    if request.lines is not None:
+        _reject_unknown_ingredients(session, request.lines)
+    if request.sizes is not None:
+        _reject_zero_typical_weight(_prospective_size_yields(session, recipe_id, request.sizes))
+
+
 def update_recipe(session: Session, recipe_id: int, request: RecipePatchRequest) -> Recipe:
-    """Apply `request` to a recipe: patch fields, replace lines, add/patch sizes -- never remove."""
+    """Apply `request` to a recipe: patch fields, replace lines, add/patch sizes -- never remove.
+
+    Every validation in `_validate_recipe_patch` runs first, before any
+    field is set or any row is deleted, inserted, or updated -- a
+    rejected patch (e.g. a `sizes` update that would zero the typical
+    total weight) must leave the recipe's current name, lines, and
+    sizes exactly as they were, even when the same request also carries
+    a valid `lines` replacement.
+    """
     recipe = session.get_one(Recipe, recipe_id)
+    _validate_recipe_patch(session, recipe_id, request)
+
     if request.name is not None:
         recipe.name = request.name
     if request.shelf_life_days is not None:
@@ -396,7 +479,6 @@ def update_recipe(session: Session, recipe_id: int, request: RecipePatchRequest)
     if request.lines is not None:
         _replace_lines(session, recipe_id, request.lines)
     if request.sizes is not None:
-        _reject_zero_typical_weight(_prospective_size_yields(session, recipe_id, request.sizes))
         _apply_size_patches(session, recipe_id, request.sizes)
     session.flush()
     return recipe

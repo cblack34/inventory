@@ -74,3 +74,19 @@ def test_every_catalog_money_weight_and_quantity_field_is_integer(app: FastAPI) 
         for field in fields:
             declared_type = _declared_type(properties[field])
             assert declared_type == "integer", f"{schema_name}.{field} is {declared_type!r}"
+
+
+def test_size_patch_item_id_is_a_plain_optional_integer_not_nullable(app: FastAPI) -> None:
+    """`SizePatchItem.id` renders as `{"type": "integer"}`, never `anyOf`/`null`.
+
+    An explicit `null` is rejected at the wire (`_reject_explicit_null_id`
+    in `inventory.api.schemas.catalog`) -- only an absent key means
+    "create a new size" -- so the generated schema, and the TypeScript
+    it drives, must describe `id` as an optional plain integer rather
+    than a nullable one.
+    """
+    id_schema = app.openapi()["components"]["schemas"]["SizePatchItem"]["properties"]["id"]
+
+    assert id_schema.get("type") == "integer"
+    assert "anyOf" not in id_schema
+    assert "null" not in id_schema.values()

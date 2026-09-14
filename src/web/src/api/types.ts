@@ -290,10 +290,21 @@ export interface components {
         /**
          * SizePatchItem
          * @description One `sizes` patch item: `id` present updates that size, absent creates one.
+         *
+         *     `id` is typed `int | SkipJsonSchema[None]` rather than plain
+         *     `int | None`: Pydantic renders a bare `int | None` as `anyOf:
+         *     [{type: integer}, {type: null}]`, which tells an OpenAPI client
+         *     that an explicit `null` is a valid value. It is not -- the
+         *     `_reject_explicit_null_id` validator below rejects `{"id": null}`
+         *     at the wire -- so the generated schema should read as a plain
+         *     optional integer (present or absent, never `null`).
+         *     `SkipJsonSchema[None]` drops the `null` branch from the *schema*
+         *     only; Python still sees `None` when the key is omitted, and the
+         *     validator below still runs on every payload, `null` included.
          */
         SizePatchItem: {
             /** Id */
-            id?: number | null;
+            id?: number;
             /** Name */
             name?: string | null;
             /** Portion Weight G */

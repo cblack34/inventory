@@ -13,6 +13,7 @@ Money fields end in `_cents`, weight fields in `_g`, matching
 from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from inventory.db.models import Recipe
 from inventory.domain.costing import RecipeLine as CostLine
@@ -75,11 +76,23 @@ class SizeCreate(BaseModel):
 
 
 class SizePatchItem(BaseModel):
-    """One `sizes` patch item: `id` present updates that size, absent creates one."""
+    """One `sizes` patch item: `id` present updates that size, absent creates one.
+
+    `id` is typed `int | SkipJsonSchema[None]` rather than plain
+    `int | None`: Pydantic renders a bare `int | None` as `anyOf:
+    [{type: integer}, {type: null}]`, which tells an OpenAPI client
+    that an explicit `null` is a valid value. It is not -- the
+    `_reject_explicit_null_id` validator below rejects `{"id": null}`
+    at the wire -- so the generated schema should read as a plain
+    optional integer (present or absent, never `null`).
+    `SkipJsonSchema[None]` drops the `null` branch from the *schema*
+    only; Python still sees `None` when the key is omitted, and the
+    validator below still runs on every payload, `null` included.
+    """
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    id: int | None = None
+    id: int | SkipJsonSchema[None] = None
     name: str | None = Field(default=None, min_length=1)
     portion_weight_g: int | None = Field(default=None, ge=1)
     price_cents: int | None = Field(default=None, ge=0)
