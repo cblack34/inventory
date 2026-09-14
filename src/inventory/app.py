@@ -14,9 +14,15 @@ from pydantic import BaseModel
 from inventory.api.auth import LoginThrottle, install_auth
 from inventory.api.deps import business_today, now, read_session, today, write_session
 from inventory.api.problems import install_problem_handlers, problem_response
+from inventory.api.routes.batches import router as batches_router
+from inventory.api.routes.entries import router as entries_router
 from inventory.api.routes.ingredients import router as ingredients_router
 from inventory.api.routes.locations import router as locations_router
+from inventory.api.routes.movements import router as movements_router
 from inventory.api.routes.recipes import router as recipes_router
+from inventory.api.routes.reversals import router as reversals_router
+from inventory.api.routes.stock import router as stock_router
+from inventory.api.routes.visits import router as visits_router
 from inventory.api.static import mount_static
 from inventory.db.engine import make_engine, make_session_factory, write_engine
 from inventory.settings import Settings
@@ -73,6 +79,12 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(ingredients_router, prefix="/api/v1")
     app.include_router(recipes_router, prefix="/api/v1")
     app.include_router(locations_router, prefix="/api/v1")
+    app.include_router(batches_router, prefix="/api/v1")
+    app.include_router(movements_router, prefix="/api/v1")
+    app.include_router(reversals_router, prefix="/api/v1")
+    app.include_router(visits_router, prefix="/api/v1")
+    app.include_router(entries_router, prefix="/api/v1")
+    app.include_router(stock_router, prefix="/api/v1")
 
     mount_static(app)
 
