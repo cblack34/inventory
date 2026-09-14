@@ -47,9 +47,19 @@ class Settings(BaseSettings):
 
     @field_validator("db")
     @classmethod
-    def _db_is_absolute_or_memory(cls, value: str) -> str:
-        if value != ":memory:" and not Path(value).is_absolute():
-            raise ValueError("DB must be an absolute path or ':memory:'")
+    def _db_is_absolute_path(cls, value: str) -> str:
+        """Reject `:memory:` along with any relative path.
+
+        A relative path resolves against the process's current working
+        directory, which is not guaranteed the same across the
+        container entrypoint, `alembic`, and a developer's shell; an
+        absolute path removes the ambiguity. `:memory:` is SQLite's own
+        in-process database -- fine for a unit test that constructs an
+        engine directly, but never a valid choice for this app's actual
+        environment, since a real deployment always persists to disk.
+        """
+        if not Path(value).is_absolute():
+            raise ValueError("DB must be an absolute path")
         return value
 
     @field_validator("shared_password")

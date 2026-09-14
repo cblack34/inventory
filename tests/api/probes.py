@@ -8,7 +8,9 @@ each test registers one of these on its own `app` fixture instance
 before wrapping it in a `TestClient`.
 """
 
-from fastapi import Depends, FastAPI
+from datetime import date
+
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
@@ -17,9 +19,25 @@ from inventory.api.auth import require_session
 from inventory.app import write_session
 from inventory.db.models import Location
 from inventory.db.writes import InvalidQuantityError
+from inventory.domain import DomainError
 from inventory.domain.ledger import InsufficientStock
 
 TEST_PASSWORD = "correct horse"
+
+
+class _ExtensionTypesError(DomainError):
+    """Test-only error carrying a `date` and a `frozenset[str]` extension member.
+
+    Pins that `_extension_members` (in `inventory.api.problems`) encodes
+    every non-private attribute generically via `jsonable_encoder`,
+    rather than only the scalar-or-int-collection shapes it used to
+    special-case.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("carries a date and a frozenset")
+        self.observed_on = date(2024, 1, 1)
+        self.tags = frozenset({"b", "a"})
 
 
 def login(client: TestClient, password: str = TEST_PASSWORD) -> None:
@@ -60,6 +78,34 @@ def add_domain_error_probe(app: FastAPI, path: str = "/api/v1/_test/insufficient
     @app.get(path, dependencies=[Depends(require_session)])
     def probe() -> None:
         raise InsufficientStock(location_id=1, size_id=2, on_hand=4, requested=6)
+
+    _move_to_front(app)
+
+
+def add_extension_types_probe(app: FastAPI, path: str = "/api/v1/_test/extension-types") -> None:
+    """A protected route raising a domain error with non-scalar extension members."""
+
+    @app.get(path, dependencies=[Depends(require_session)])
+    def probe() -> None:
+        raise _ExtensionTypesError()
+
+    _move_to_front(app)
+
+
+def add_nonstandard_status_probe(
+    app: FastAPI, path: str = "/api/v1/_test/nonstandard-status"
+) -> None:
+    """A protected route raising an `HTTPException` with a code `HTTPStatus` doesn't know.
+
+    `detail` must be given explicitly: Starlette's own `HTTPException.__init__`
+    derives a default detail from `HTTPStatus(status_code).phrase` when
+    none is given, which would raise `ValueError` for `599` before the
+    exception even reaches the Problem handler this probe is pinning.
+    """
+
+    @app.get(path, dependencies=[Depends(require_session)])
+    def probe() -> None:
+        raise HTTPException(status_code=599, detail="made up for the test")
 
     _move_to_front(app)
 

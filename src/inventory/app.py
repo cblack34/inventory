@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from inventory.api.auth import LoginThrottle, install_auth
-from inventory.api.problems import Problem, install_problem_handlers
+from inventory.api.problems import install_problem_handlers, problem_response
 from inventory.api.static import mount_static
 from inventory.db.engine import make_engine, make_session_factory, write_engine
 from inventory.db.transaction import write_transaction
@@ -69,9 +69,9 @@ def create_app(settings: Settings) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
         responses={
-            401: {"model": Problem},
-            404: {"model": Problem},
-            422: {"model": Problem},
+            401: problem_response(),
+            404: problem_response(),
+            422: problem_response(),
         },
     )
 

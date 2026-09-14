@@ -35,11 +35,11 @@ def mount_static(app: FastAPI) -> None:
     index_path = dist_dir / "index.html"
     app.mount("/assets", StaticFiles(directory=dist_dir / "assets"), name="assets")
 
-    @app.get("/login")
+    @app.get("/login", include_in_schema=False)
     def login_page() -> FileResponse:
         return FileResponse(index_path)
 
-    @app.get("/{path:path}")
+    @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str, request: Request) -> Response:
         if path.startswith("api/") or path in _DISABLED_DOC_ROUTES:
             raise HTTPException(status_code=404)

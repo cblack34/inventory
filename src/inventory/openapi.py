@@ -9,6 +9,8 @@ to build the app, never used to serve traffic.
 
 import json
 import sys
+import tempfile
+from pathlib import Path
 
 from pydantic import SecretStr
 
@@ -18,7 +20,7 @@ from inventory.settings import Settings
 
 def _dummy_settings() -> Settings:
     return Settings(
-        DB=":memory:",
+        DB=str(Path(tempfile.gettempdir()) / "inventory-openapi-dummy.db"),
         SHARED_PASSWORD=SecretStr("dummy-password"),
         SESSION_SECRET=SecretStr("0" * 32),
         TIMEZONE="UTC",

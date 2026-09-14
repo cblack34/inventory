@@ -11,53 +11,87 @@ hand-rolls signing.
 from __future__ import annotations
 
 import secrets
+import threading
 import time
-from collections import defaultdict
+from collections.abc import Callable
 
 from fastapi import APIRouter, FastAPI, Request, Response
 from pydantic import BaseModel, ConfigDict
 from starlette.middleware.sessions import SessionMiddleware
 
-from inventory.api.problems import ProblemHTTPException
+from inventory.api.problems import ProblemHTTPException, problem_response
 from inventory.settings import Settings
 
 _SESSION_COOKIE = "session"
 _MAX_AGE_SECONDS = 30 * 24 * 3600
 _MAX_FAILURES = 5
 _THROTTLE_WINDOW_SECONDS = 15 * 60
+# ponytail: two users behind one shared password will never attract hundreds
+# of distinct attacking IPs; if this ceiling ever fires for real, replace the
+# plain dict with a bounded TTL cache (e.g. `cachetools.TTLCache`) instead of
+# raising the number.
+_SWEEP_CEILING = 256
 
 
 class LoginThrottle:
     """Per-IP failed-login counter with a rolling 15-minute window.
 
-    A plain dict is fine for two users on one process; `create_app`
-    builds one instance per app (stored on `app.state.login_throttle`)
-    so tests get a fresh counter instead of sharing state across runs.
+    A plain dict guarded by a lock is fine for two users on one process;
+    `create_app` builds one instance per app (stored on
+    `app.state.login_throttle`) so tests get a fresh counter instead of
+    sharing state across runs. `clock` is a `time.monotonic`-shaped
+    callable so tests can advance time without sleeping.
     """
 
-    def __init__(self) -> None:
-        self._failures: dict[str, list[float]] = defaultdict(list)
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._failures: dict[str, list[float]] = {}
+        self._clock = clock
+        self._lock = threading.Lock()
 
-    def _recent_failures(self, ip: str, *, now: float) -> list[float]:
-        recent = [ts for ts in self._failures[ip] if now - ts < _THROTTLE_WINDOW_SECONDS]
-        self._failures[ip] = recent
+    def _recent_failures_locked(self, ip: str, *, now: float) -> list[float]:
+        """`ip`'s failures still inside the window; also evicts `ip` if none are left."""
+        recent = [ts for ts in self._failures.get(ip, ()) if now - ts < _THROTTLE_WINDOW_SECONDS]
+        if recent:
+            self._failures[ip] = recent
+        else:
+            self._failures.pop(ip, None)
         return recent
+
+    def _sweep_locked(self, now: float) -> None:
+        """Evict every IP whose failures have all aged out, bounding total memory."""
+        for ip in list(self._failures):
+            self._recent_failures_locked(ip, now=now)
 
     def retry_after_seconds(self, ip: str) -> int | None:
         """Seconds until `ip`'s window clears, or `None` if it is not currently throttled."""
-        now = time.monotonic()
-        recent = self._recent_failures(ip, now=now)
+        now = self._clock()
+        with self._lock:
+            recent = self._recent_failures_locked(ip, now=now)
         if len(recent) < _MAX_FAILURES:
             return None
         return max(1, round(_THROTTLE_WINDOW_SECONDS - (now - min(recent))))
 
     def record_failure(self, ip: str) -> None:
-        now = time.monotonic()
-        recent = self._recent_failures(ip, now=now)
-        recent.append(now)
+        now = self._clock()
+        with self._lock:
+            if len(self._failures) > _SWEEP_CEILING:
+                self._sweep_locked(now)
+            recent = self._recent_failures_locked(ip, now=now)
+            recent.append(now)
+            self._failures[ip] = recent
 
     def clear(self, ip: str) -> None:
-        self._failures.pop(ip, None)
+        with self._lock:
+            self._failures.pop(ip, None)
+
+    @property
+    def tracked_ip_count(self) -> int:
+        """How many IPs currently have at least one still-in-window failure.
+
+        A test seam for the memory-bound sweep, not used by routing.
+        """
+        with self._lock:
+            return len(self._failures)
 
 
 class LoginRequest(BaseModel):
@@ -91,7 +125,7 @@ def _client_ip(request: Request) -> str:
 def _build_session_router(settings: Settings, throttle: LoginThrottle) -> APIRouter:
     router = APIRouter()
 
-    @router.post("/session", status_code=204)
+    @router.post("/session", status_code=204, responses={429: problem_response()})
     def login(payload: LoginRequest, request: Request) -> Response:
         ip = _client_ip(request)
         retry_after = throttle.retry_after_seconds(ip)
