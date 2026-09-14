@@ -29,6 +29,15 @@ from inventory.domain.visits import Locations
 _TRANSFERABLE_KINDS = ("kitchen", "stand")
 
 
+class InvalidQuantityError(DomainError):
+    """A count or quantity outside what the write path accepts."""
+
+    def __init__(self, *, field: str, value: int) -> None:
+        self.field = field
+        self.value = value
+        super().__init__(f"{field} must be non-negative, got {value}")
+
+
 class ExpiresBeforeBakedError(DomainError):
     """A bake's expiration date is earlier than its baked date."""
 
@@ -98,6 +107,9 @@ def _batch_cost_cents(session: Session, recipe_id: int) -> int:
 
 
 def _bake_yields(session: Session, recipe_id: int, counts: Mapping[int, int]) -> list[SizeYield]:
+    for size_id, count in counts.items():
+        if count < 0:
+            raise InvalidQuantityError(field=f"counts[{size_id}]", value=count)
     sizes = session.execute(
         select(Size.id, Size.portion_weight_g).where(Size.recipe_id == recipe_id)
     ).all()
@@ -222,6 +234,8 @@ def record_manual_move(session: Session, move: ManualMove, *, now: datetime) -> 
     `domain.ledger.InsufficientStock` untouched when FIFO cannot cover
     `quantity`.
     """
+    if move.quantity <= 0:
+        raise InvalidQuantityError(field="quantity", value=move.quantity)
     if move.from_location_id == move.to_location_id:
         raise SameLocationError(location_id=move.from_location_id)
 

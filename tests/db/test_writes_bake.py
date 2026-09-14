@@ -14,7 +14,12 @@ from sqlalchemy.orm import Session
 from inventory.db.builtins import load_builtin_locations
 from inventory.db.models import Batch, BatchSize, Entry, Ingredient
 from inventory.db.models import Movement as MovementRow
-from inventory.db.writes import BakeRequest, ExpiresBeforeBakedError, record_bake
+from inventory.db.writes import (
+    BakeRequest,
+    ExpiresBeforeBakedError,
+    InvalidQuantityError,
+    record_bake,
+)
 from inventory.domain.costing import ZeroWeightError
 from tests.db.seed import BakeFixture
 
@@ -204,3 +209,17 @@ def test_record_bake_rejects_expires_before_baked_and_writes_nothing(
 
     with Session(engine) as session:
         assert _row_counts(session) == before
+
+
+def test_bake_with_a_negative_count_is_rejected(engine: Engine, bake_fixture: BakeFixture) -> None:
+    with Session(engine) as session, pytest.raises(InvalidQuantityError):
+        record_bake(
+            session,
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={bake_fixture.large_id: 1, bake_fixture.small_id: -1},
+            ),
+            now=_NOW,
+        )

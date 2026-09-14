@@ -19,6 +19,7 @@ from inventory.db.transaction import write_transaction
 from inventory.db.writes import (
     BakeRequest,
     InvalidDestinationLocationError,
+    InvalidQuantityError,
     ManualMove,
     record_bake,
     record_manual_move,
@@ -181,7 +182,90 @@ def test_manual_move_out_of_an_inactive_stand_succeeds(
         )
         session.commit()
 
-    assert entry_id is not None
+    with Session(engine) as session:
+        rows = session.execute(
+            select(MovementRow).where(MovementRow.entry_id == entry_id)
+        ).scalars()
+        moved = [(row.from_location_id, row.to_location_id, row.quantity) for row in rows]
+    assert moved == [(stand_id, kitchen_id, 5)]
+
+
+@pytest.mark.parametrize("quantity", [0, -1])
+def test_manual_move_with_non_positive_quantity_is_rejected_and_writes_nothing(
+    engine: Engine, single_size_recipe: SingleSizeRecipe, quantity: int
+) -> None:
+    with Session(engine) as session:
+        locations = load_builtin_locations(session).locations
+        entries_before = session.execute(select(func.count()).select_from(Entry)).scalar_one()
+        with pytest.raises(InvalidQuantityError):
+            record_manual_move(
+                session,
+                ManualMove(
+                    from_location_id=locations.kitchen_id,
+                    to_location_id=locations.waste_id,
+                    size_id=single_size_recipe.size_id,
+                    quantity=quantity,
+                ),
+                now=_NOW,
+            )
+        session.rollback()
+        assert (
+            session.execute(select(func.count()).select_from(Entry)).scalar_one() == entries_before
+        )
+
+
+def test_manual_removal_drains_the_earlier_expiring_batch_first_across_two_bakes(
+    engine: Engine, single_size_recipe: SingleSizeRecipe
+) -> None:
+    baked_first = _NOW.date()
+    with Session(engine) as session:
+        # Baked first, expires later.
+        later_batch_id = record_bake(
+            session,
+            BakeRequest(
+                recipe_id=single_size_recipe.recipe_id,
+                baked=baked_first,
+                expires=baked_first.replace(day=20),
+                counts={single_size_recipe.size_id: 5},
+            ),
+            now=_NOW,
+        )
+        # Baked second, expires sooner (a legal edited expiration).
+        sooner_batch_id = record_bake(
+            session,
+            BakeRequest(
+                recipe_id=single_size_recipe.recipe_id,
+                baked=baked_first.replace(day=2),
+                expires=baked_first.replace(day=10),
+                counts={single_size_recipe.size_id: 4},
+            ),
+            now=_NOW,
+        )
+        locations = load_builtin_locations(session).locations
+        entry_id = record_manual_move(
+            session,
+            ManualMove(
+                from_location_id=locations.kitchen_id,
+                to_location_id=locations.waste_id,
+                size_id=single_size_recipe.size_id,
+                quantity=6,
+            ),
+            now=_NOW,
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        rows = (
+            session.execute(
+                select(MovementRow).where(MovementRow.entry_id == entry_id).order_by(MovementRow.id)
+            )
+            .scalars()
+            .all()
+        )
+    assert [(row.batch_id, row.quantity) for row in rows] == [
+        (sooner_batch_id, 4),
+        (later_batch_id, 2),
+    ]
 
 
 def test_manual_move_naming_sold_for_a_zero_price_size_lands_in_sampled(
