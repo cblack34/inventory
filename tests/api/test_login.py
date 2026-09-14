@@ -87,7 +87,11 @@ def test_tampered_cookie_is_treated_as_unauthenticated(app: FastAPI) -> None:
         login(client)
         cookie_value = client.cookies.get("session")
         assert cookie_value is not None
-        tampered = cookie_value[:-1] + ("0" if cookie_value[-1] != "0" else "1")
+        # Alter the first payload character: its high bits always change the
+        # decoded bytes, unlike the final signature character whose low bits
+        # can be base64 padding and decode identically.
+        first = "f" if cookie_value[0] != "f" else "g"
+        tampered = first + cookie_value[1:]
         client.cookies.set("session", tampered)
 
         response = client.get("/api/v1/_test/probe")
