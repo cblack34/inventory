@@ -170,6 +170,7 @@ def test_history_lists_newest_first_and_a_voided_visit_has_no_profit_figure(
 
     visit_history = next(entry for entry in entries if entry.entry_id == visit_entry_id)
     assert visit_history.voided is True
+    assert visit_history.revenue_cents is None
     assert visit_history.profit_cents is None
     assert visit_history.location_id == stand_and_market.market_id
 
@@ -303,6 +304,7 @@ def test_history_runs_a_bounded_number_of_queries_and_matches_visit_profit(
         entry for entry in entries_with_three_visits if entry.entry_id == voided_entry_id
     )
     assert voided_history_entry.profit_cents is None
+    assert voided_history_entry.revenue_cents is None
 
     with Session(engine) as session:
         _market_visit(

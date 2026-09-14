@@ -13,7 +13,7 @@ of history length. See `docs/data-model.md`, "Profit" and "Expiration",
 and `docs/acceptance.md`, "Home screen and expiration".
 """
 
-from collections.abc import Collection, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -180,10 +180,8 @@ def _visit_rows_by_entry(session: Session) -> dict[int, VisitRow]:
     return {row.entry_id: row for row in rows}
 
 
-def _visit_costs_by_entry(
-    session: Session, entry_ids: Collection[int]
-) -> dict[int, dict[int, int]]:
-    """`entry_id -> {to_location_id: total_cost_cents}`, one query for all of `entry_ids`.
+def _visit_costs_by_entry(session: Session) -> dict[int, dict[int, int]]:
+    """`entry_id -> {to_location_id: total_cost_cents}` for every non-voided visit, in one query.
 
     Sums `unit_cost_cents * quantity` over each visit's movements, per
     destination location, the same figure `visit_profit`'s `_cost_to`
@@ -191,8 +189,11 @@ def _visit_costs_by_entry(
     lands on appear; a visit with no waste, say, has no entry for
     Waste's location id.
     """
-    if not entry_ids:
-        return {}
+    non_voided_visit_ids = (
+        select(Entry.id)
+        .join(VisitRow, VisitRow.entry_id == Entry.id)
+        .where(Entry.voided.is_(False))
+    )
     rows = session.execute(
         select(
             MovementRow.entry_id,
@@ -204,7 +205,7 @@ def _visit_costs_by_entry(
             (BatchSize.batch_id == MovementRow.batch_id)
             & (BatchSize.size_id == MovementRow.size_id),
         )
-        .where(MovementRow.entry_id.in_(entry_ids))
+        .where(MovementRow.entry_id.in_(non_voided_visit_ids))
         .group_by(MovementRow.entry_id, MovementRow.to_location_id)
     ).all()
     costs: dict[int, dict[int, int]] = {}
@@ -240,13 +241,15 @@ def _history_entry(
         created_at=entry.created_at,
         voided=entry.voided,
         location_id=visit_row.location_id if visit_row is not None else None,
-        revenue_cents=visit_row.revenue_cents if visit_row is not None else None,
+        revenue_cents=(
+            visit_row.revenue_cents if visit_row is not None and not entry.voided else None
+        ),
         profit_cents=profit_cents,
     )
 
 
 def history(session: Session) -> list[HistoryEntry]:
-    """Every entry, newest first, with revenue and profit for non-voided visits.
+    """Every entry, newest first; revenue and profit only for non-voided visits.
 
     `revenue_cents` reflects a voided visit's stored figure -- undo does
     not erase the cash that was actually collected -- but `profit_cents`
@@ -265,10 +268,7 @@ def history(session: Session) -> list[HistoryEntry]:
         .all()
     )
     visits_by_entry = _visit_rows_by_entry(session)
-    non_voided_visit_entry_ids = [
-        entry.id for entry in entries if not entry.voided and entry.id in visits_by_entry
-    ]
-    costs_by_entry = _visit_costs_by_entry(session, non_voided_visit_entry_ids)
+    costs_by_entry = _visit_costs_by_entry(session)
     locations = load_builtin_locations(session).locations
     return [
         _history_entry(entry, visits_by_entry.get(entry.id), costs_by_entry, locations)
