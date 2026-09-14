@@ -10,7 +10,7 @@ touches `entry`, `visit`, or `movement` -- see `docs/data-model.md`,
 way `docs/data-model.md`, "Profit" defines it.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -22,7 +22,7 @@ from inventory.db.models import Entry, Location, Size
 from inventory.db.models import Movement as MovementRow
 from inventory.db.models import Visit as VisitRow
 from inventory.db.stock import load_stock, unit_costs
-from inventory.db.writes import InvalidQuantityError
+from inventory.db.writes import InvalidQuantityError, UnknownSizeError
 from inventory.domain import DomainError
 from inventory.domain.ledger import PlannedMovement
 from inventory.domain.visits import (
@@ -131,6 +131,19 @@ def _size_prices_cents(session: Session) -> dict[int, int]:
     return {row.id: row.price_cents for row in rows}
 
 
+def _require_known_sizes(
+    rows: Sequence[StandRow] | Sequence[MarketRow], prices_cents: Mapping[int, int]
+) -> None:
+    """Reject rows naming a size that does not exist.
+
+    The planners treat an unknown size as an unpriced size with no stock,
+    which would let a row of zeros record a phantom visit.
+    """
+    unknown = frozenset(row.size_id for row in rows) - prices_cents.keys()
+    if unknown:
+        raise UnknownSizeError(size_ids=unknown)
+
+
 def _build_context(session: Session) -> Context:
     stock, batches = load_stock(session)
     locations = load_builtin_locations(session).locations
@@ -187,6 +200,7 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
     _require_visit_location(session, location_id=visit.stand_id, expected_kind="stand")
 
     context = _build_context(session)
+    _require_known_sizes(visit.rows, context.prices_cents)
     plan = plan_stand_visit(visit.stand_id, visit.rows, context)
 
     return _write_visit(
@@ -219,6 +233,7 @@ def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) 
     _require_visit_location(session, location_id=visit.market_id, expected_kind="market")
 
     context = _build_context(session)
+    _require_known_sizes(visit.rows, context.prices_cents)
     plan = plan_market_visit(visit.market_id, visit.rows, context)
 
     return _write_visit(

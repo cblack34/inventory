@@ -26,7 +26,14 @@ from inventory.db.visits import (
     record_stand_visit,
     visit_profit,
 )
-from inventory.db.writes import BakeRequest, ManualMove, record_bake, record_manual_move, undo
+from inventory.db.writes import (
+    BakeRequest,
+    ManualMove,
+    UnknownSizeError,
+    record_bake,
+    record_manual_move,
+    undo,
+)
 from inventory.domain.ledger import InsufficientStock
 from inventory.domain.visits import MarketOverTakenError, MarketRow, StandRow
 from tests.db.seed import BakeFixture, SingleSizeRecipe, StandAndMarket
@@ -515,3 +522,33 @@ def test_manual_move_that_drains_a_batch_after_a_visit_blocks_its_undo(
         assert _row_counts(session) == before_undo
         assert before_undo != before  # the drain itself did write rows
         assert session.get_one(Entry, stand_visit_entry_id).voided is False
+
+
+def test_visits_reject_rows_naming_an_unknown_size_and_write_nothing(
+    engine: Engine, stand_and_market: StandAndMarket
+) -> None:
+    with Session(engine) as session:
+        before = _row_counts(session)
+        with pytest.raises(UnknownSizeError):
+            record_stand_visit(
+                session,
+                StandVisit(
+                    stand_id=stand_and_market.stand_id,
+                    rows=[StandRow(size_id=999_999, counted=0, tossed=0, pulled=0, added=0)],
+                    revenue_cents=0,
+                ),
+                now=_NOW,
+            )
+        with pytest.raises(UnknownSizeError):
+            record_market_visit(
+                session,
+                MarketVisit(
+                    market_id=stand_and_market.market_id,
+                    rows=[MarketRow(size_id=999_999, taken=0, returned=0, tossed=0)],
+                    revenue_cents=0,
+                    fee_cents=0,
+                ),
+                now=_NOW,
+            )
+        session.rollback()
+        assert _row_counts(session) == before

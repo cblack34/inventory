@@ -40,12 +40,16 @@ class InvalidQuantityError(DomainError):
 
 
 class UnknownSizeError(DomainError):
-    """A bake named a size that does not belong to its recipe."""
+    """A request named a size that does not exist or does not belong to its recipe."""
 
-    def __init__(self, *, recipe_id: int, size_ids: frozenset[int]) -> None:
+    def __init__(self, *, size_ids: frozenset[int], recipe_id: int | None = None) -> None:
         self.recipe_id = recipe_id
         self.size_ids = size_ids
-        super().__init__(f"sizes {sorted(size_ids)} do not belong to recipe {recipe_id}")
+        if recipe_id is None:
+            message = f"sizes {sorted(size_ids)} do not exist"
+        else:
+            message = f"sizes {sorted(size_ids)} do not belong to recipe {recipe_id}"
+        super().__init__(message)
 
 
 class ExpiresBeforeBakedError(DomainError):
@@ -251,6 +255,8 @@ def record_manual_move(session: Session, move: ManualMove, *, now: datetime) -> 
         raise InvalidQuantityError(field="quantity", value=move.quantity, minimum=1)
     if move.from_location_id == move.to_location_id:
         raise SameLocationError(location_id=move.from_location_id)
+    if session.get(Size, move.size_id) is None:
+        raise UnknownSizeError(size_ids=frozenset({move.size_id}))
 
     builtins = load_builtin_locations(session)
     if move.from_location_id not in builtins.locations.inventory_location_ids:

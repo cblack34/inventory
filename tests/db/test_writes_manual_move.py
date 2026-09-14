@@ -21,6 +21,7 @@ from inventory.db.writes import (
     InvalidDestinationLocationError,
     InvalidQuantityError,
     ManualMove,
+    UnknownSizeError,
     record_bake,
     record_manual_move,
 )
@@ -309,3 +310,26 @@ def test_manual_move_naming_sold_for_a_zero_price_size_lands_in_sampled(
         # ... but it resolves to Sampled because the size is priced at zero.
         assert movement.to_location_id == sampled_id
         assert movement.to_location_id != sold_id
+
+
+def test_manual_move_naming_an_unknown_size_is_rejected_and_writes_nothing(
+    engine: Engine, single_size_recipe: SingleSizeRecipe
+) -> None:
+    _bake_ten_units(engine, single_size_recipe)
+    with Session(engine) as session:
+        locations = load_builtin_locations(session).locations
+        before = _row_counts(session)
+        with pytest.raises(UnknownSizeError) as excinfo:
+            record_manual_move(
+                session,
+                ManualMove(
+                    from_location_id=locations.kitchen_id,
+                    to_location_id=locations.sold_id,
+                    size_id=999_999,
+                    quantity=1,
+                ),
+                now=_NOW,
+            )
+        session.rollback()
+        assert excinfo.value.size_ids == {999_999}
+        assert _row_counts(session) == before

@@ -95,7 +95,7 @@ erDiagram
 
 ## What the diagram cannot show
 
-- **Nothing derived is stored.** There is no on-hand column; stock is always the fold over `movement`. Recipe cost per size is computed on read from current ingredient prices.
+- **Nothing derived is stored.** There is no on-hand column; stock is always the fold over `movement`. The recipe screen's live cost estimate per size is computed on read from current ingredient prices and typical yields and is never stored. It is distinct from `batch.total_cost_cents` and `batch_size.unit_cost_cents`, which are written once at bake time and frozen; profit always uses the frozen batch figures, never a recomputation.
 - **No deletes.** No ORM relationship cascades and no route deletes a row in any table. `ingredient` and user-created `location` rows carry `active`; every other row is permanent. Voiding an `entry` is the only lifecycle change, and it never edits or removes the entry's movements.
 - **Built-ins by migration.** Kitchen, Production, Sold, Waste, and Sampled are rows created by the initial migration and cannot be renamed, deactivated, or deleted through the API.
 - **Frozen cost.** A `BEFORE UPDATE` trigger on `batch.total_cost_cents` and `batch_size.unit_cost_cents` raises, so no write path (ORM, Core, or raw SQL) can change a recorded cost.
