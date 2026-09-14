@@ -9,6 +9,8 @@ dependencies = [
     "pydantic>=2,<3",
     "sqlalchemy>=2",
     "alembic",
+    "pydantic-settings>=2.15.0",
+    "itsdangerous>=2.2.0",
 ]
 
 [dependency-groups]
@@ -48,6 +50,11 @@ known-third-party = ["alembic"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)` as a parameter default is FastAPI's own dependency-injection
+# idiom, not the mutable-default footgun B008 exists to catch.
+extend-immutable-calls = ["fastapi.Depends"]
 
 [tool.ruff.lint.pylint]
 max-args = 5
