@@ -20,6 +20,7 @@ from inventory.api.schemas.catalog import (
     SizeCreate,
     SizePatchItem,
 )
+from inventory.api.stock_context import catalog_errors
 from inventory.db.catalog import (
     RecipeCreateRequest,
     RecipePatchRequest,
@@ -99,7 +100,8 @@ def create_recipe_route(
         lines=_to_db_lines(payload.lines),
         sizes=_to_db_sizes(payload.sizes),
     )
-    row = create_recipe(session, request)
+    with catalog_errors(session):
+        row = create_recipe(session, request)
     return RecipeRead.from_model(row)
 
 
@@ -113,5 +115,6 @@ def update_recipe_route(
         lines=_to_db_lines(payload.lines) if payload.lines is not None else None,
         sizes=_to_db_size_patches(payload.sizes) if payload.sizes is not None else None,
     )
-    row = update_recipe(session, recipe_id, request)
+    with catalog_errors(session):
+        row = update_recipe(session, recipe_id, request)
     return RecipeRead.from_model(row)

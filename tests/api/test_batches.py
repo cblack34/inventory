@@ -154,6 +154,41 @@ def test_ingredient_price_change_after_bake_leaves_batch_unchanged(client: TestC
     assert reread.json() == batch
 
 
+def test_bake_with_a_foreign_size_reports_recipe_and_size_names(client: TestClient) -> None:
+    """A count naming another recipe's size is an `UnknownSizeError` for this recipe.
+
+    The Problem body must name the recipe actually being baked and the
+    foreign size, not just their bare ids -- `docs/acceptance.md`'s
+    ledger/stock bullet.
+    """
+    login(client)
+    recipe = _three_size_recipe(client)
+    other_recipe = create_recipe(
+        client,
+        sizes=[
+            {"name": "Other", "portion_weight_g": 10, "price_cents": 100, "typical_yield_count": 1}
+        ],
+    )
+    foreign_size_id = other_recipe["sizes"][0]["id"]
+
+    response = client.post(
+        "/api/v1/batches",
+        json={
+            "recipe_id": recipe["id"],
+            "baked": "2026-01-01",
+            "expires": "2026-01-10",
+            "counts": [{"size_id": foreign_size_id, "count": 1}],
+        },
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["type"] == "urn:inventory:problem:unknown-size"
+    assert body["recipe_id"] == recipe["id"]
+    assert body["recipe_name"] == recipe["name"]
+    assert body["size_names"] == {str(foreign_size_id): "Other"}
+
+
 def test_duplicate_size_in_counts_is_rejected(client: TestClient) -> None:
     login(client)
     recipe = _three_size_recipe(client)

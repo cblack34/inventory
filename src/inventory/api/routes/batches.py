@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from inventory.api.auth import require_session
 from inventory.api.deps import now, read_session, write_session
 from inventory.api.schemas.ledger import BatchCreate, BatchRead
+from inventory.api.stock_context import catalog_errors
 from inventory.db.models import Batch
 from inventory.db.writes import BakeRequest, record_bake
 
@@ -42,7 +43,8 @@ def create_batch(
         expires=payload.expires,
         counts=payload.counts_by_size(),
     )
-    batch_id = record_bake(session, request, now=moment)
+    with catalog_errors(session):
+        batch_id = record_bake(session, request, now=moment)
     return BatchRead.from_model(_load_batch(session, batch_id))
 
 

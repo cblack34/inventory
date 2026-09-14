@@ -116,7 +116,9 @@ def test_rename_or_deactivate_a_builtin_is_rejected(client: TestClient) -> None:
     deactivated = client.patch(f"/api/v1/locations/{kitchen['id']}", json={"active": False})
 
     assert renamed.status_code == 422
+    assert renamed.json()["location_name"] == "Kitchen"
     assert deactivated.status_code == 422
+    assert deactivated.json()["location_name"] == "Kitchen"
 
 
 def test_deactivate_a_stand_with_stock_is_rejected_naming_on_hand(
@@ -137,6 +139,7 @@ def test_deactivate_a_stand_with_stock_is_rejected_naming_on_hand(
     body = response.json()
     assert body["type"] == "urn:inventory:problem:location-has-stock"
     assert body["on_hand"] == 3
+    assert body["location_name"] == stand["name"]
 
 
 def test_deactivate_an_empty_stand_succeeds_and_can_be_reactivated(client: TestClient) -> None:

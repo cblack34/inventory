@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from inventory.api.auth import require_session
 from inventory.api.deps import read_session, write_session
 from inventory.api.schemas.catalog import IngredientCreate, IngredientRead, IngredientUpdate
+from inventory.api.stock_context import catalog_errors
 from inventory.db.catalog import IngredientPatch, create_ingredient, update_ingredient
 from inventory.db.models import Ingredient
 
@@ -35,12 +36,13 @@ def get_ingredient(ingredient_id: int, session: Session = Depends(read_session))
 def create_ingredient_route(
     payload: IngredientCreate, session: Session = Depends(write_session)
 ) -> IngredientRead:
-    row = create_ingredient(
-        session,
-        name=payload.name,
-        unit_label=payload.unit_label,
-        current_price_cents=payload.current_price_cents,
-    )
+    with catalog_errors(session):
+        row = create_ingredient(
+            session,
+            name=payload.name,
+            unit_label=payload.unit_label,
+            current_price_cents=payload.current_price_cents,
+        )
     return IngredientRead.model_validate(row)
 
 
@@ -49,5 +51,6 @@ def update_ingredient_route(
     ingredient_id: int, payload: IngredientUpdate, session: Session = Depends(write_session)
 ) -> IngredientRead:
     patch = IngredientPatch(**payload.model_dump(exclude_unset=True))
-    row = update_ingredient(session, ingredient_id, patch)
+    with catalog_errors(session):
+        row = update_ingredient(session, ingredient_id, patch)
     return IngredientRead.model_validate(row)

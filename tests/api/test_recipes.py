@@ -206,7 +206,14 @@ def test_patch_size_id_belonging_to_another_recipe_is_rejected(client: TestClien
     )
 
     assert response.status_code == 422
-    assert response.json()["type"] == "urn:inventory:problem:size-not-in-recipe"
+    body = response.json()
+    assert body["type"] == "urn:inventory:problem:size-not-in-recipe"
+    # The target recipe being patched, not the foreign size's own recipe.
+    assert body["recipe_id"] == recipe_a["id"]
+    assert body["recipe_name"] == recipe_a["name"]
+    assert body["size_id"] == other_size_id
+    assert body["size_name"] == recipe_b["sizes"][0]["name"]
+    assert body["size_recipe_id"] == recipe_b["id"]
 
 
 def test_patch_lines_replaces_the_whole_list(client: TestClient) -> None:
