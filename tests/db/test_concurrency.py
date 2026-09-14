@@ -11,7 +11,6 @@ write transaction at the same instant rather than racing to start.
 import threading
 from datetime import UTC, datetime
 
-from conftest import SingleSizeRecipe
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -19,8 +18,9 @@ from inventory.db.builtins import load_builtin_locations
 from inventory.db.engine import make_session_factory, write_engine
 from inventory.db.stock import load_stock
 from inventory.db.transaction import write_transaction
-from inventory.db.writes import record_bake, record_manual_move
+from inventory.db.writes import BakeRequest, ManualMove, record_bake, record_manual_move
 from inventory.domain.ledger import InsufficientStock
+from tests.db.seed import SingleSizeRecipe
 
 _NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
@@ -32,10 +32,12 @@ def test_two_concurrent_manual_removals_over_on_hand_exactly_one_succeeds(
     with write_transaction(session_factory) as session:
         record_bake(
             session,
-            recipe_id=single_size_recipe.recipe_id,
-            baked=_NOW.date(),
-            expires=_NOW.date(),
-            counts={single_size_recipe.size_id: 10},
+            BakeRequest(
+                recipe_id=single_size_recipe.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={single_size_recipe.size_id: 10},
+            ),
             now=_NOW,
         )
 
@@ -53,10 +55,12 @@ def test_two_concurrent_manual_removals_over_on_hand_exactly_one_succeeds(
             with write_transaction(session_factory) as session:
                 record_manual_move(
                     session,
-                    from_location_id=kitchen_id,
-                    to_location_id=waste_id,
-                    size_id=single_size_recipe.size_id,
-                    quantity=6,
+                    ManualMove(
+                        from_location_id=kitchen_id,
+                        to_location_id=waste_id,
+                        size_id=single_size_recipe.size_id,
+                        quantity=6,
+                    ),
                     now=_NOW,
                 )
         except Exception as exc:

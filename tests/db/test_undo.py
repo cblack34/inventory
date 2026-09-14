@@ -7,7 +7,6 @@ See `docs/data-model.md`, "Corrections", and `docs/acceptance.md`,
 from datetime import UTC, datetime
 
 import pytest
-from conftest import SingleSizeRecipe
 from sqlalchemy import insert, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
@@ -17,8 +16,16 @@ from inventory.db.builtins import load_builtin_locations
 from inventory.db.models import Entry, Location
 from inventory.db.models import Movement as MovementRow
 from inventory.db.stock import load_stock
-from inventory.db.writes import AlreadyVoidedEntryError, record_bake, record_manual_move, undo
+from inventory.db.writes import (
+    AlreadyVoidedEntryError,
+    BakeRequest,
+    ManualMove,
+    record_bake,
+    record_manual_move,
+    undo,
+)
 from inventory.domain.ledger import InsufficientStock
+from tests.db.seed import SingleSizeRecipe
 
 _NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
@@ -26,10 +33,12 @@ _NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 def _bake_ten_units(session: Session, single_size_recipe: SingleSizeRecipe) -> int:
     return record_bake(
         session,
-        recipe_id=single_size_recipe.recipe_id,
-        baked=_NOW.date(),
-        expires=_NOW.date(),
-        counts={single_size_recipe.size_id: 10},
+        BakeRequest(
+            recipe_id=single_size_recipe.recipe_id,
+            baked=_NOW.date(),
+            expires=_NOW.date(),
+            counts={single_size_recipe.size_id: 10},
+        ),
         now=_NOW,
     )
 
@@ -48,10 +57,12 @@ def test_undo_of_a_manual_toss_restores_stock_and_voids_with_reverses_movement_i
 
         toss_entry_id = record_manual_move(
             session,
-            from_location_id=kitchen_id,
-            to_location_id=waste_id,
-            size_id=single_size_recipe.size_id,
-            quantity=3,
+            ManualMove(
+                from_location_id=kitchen_id,
+                to_location_id=waste_id,
+                size_id=single_size_recipe.size_id,
+                quantity=3,
+            ),
             now=_NOW,
         )
         session.commit()
@@ -90,10 +101,12 @@ def test_undo_of_an_already_voided_entry_is_rejected(
         waste_id = load_builtin_locations(session).locations.waste_id
         toss_entry_id = record_manual_move(
             session,
-            from_location_id=kitchen_id,
-            to_location_id=waste_id,
-            size_id=single_size_recipe.size_id,
-            quantity=3,
+            ManualMove(
+                from_location_id=kitchen_id,
+                to_location_id=waste_id,
+                size_id=single_size_recipe.size_id,
+                quantity=3,
+            ),
             now=_NOW,
         )
         session.commit()
@@ -119,18 +132,22 @@ def test_two_identical_removals_produce_distinct_rows_and_undo_of_one_leaves_the
 
         first_entry_id = record_manual_move(
             session,
-            from_location_id=kitchen_id,
-            to_location_id=waste_id,
-            size_id=single_size_recipe.size_id,
-            quantity=2,
+            ManualMove(
+                from_location_id=kitchen_id,
+                to_location_id=waste_id,
+                size_id=single_size_recipe.size_id,
+                quantity=2,
+            ),
             now=_NOW,
         )
         second_entry_id = record_manual_move(
             session,
-            from_location_id=kitchen_id,
-            to_location_id=waste_id,
-            size_id=single_size_recipe.size_id,
-            quantity=2,
+            ManualMove(
+                from_location_id=kitchen_id,
+                to_location_id=waste_id,
+                size_id=single_size_recipe.size_id,
+                quantity=2,
+            ),
             now=_NOW,
         )
         session.commit()
@@ -202,10 +219,12 @@ def test_undo_of_a_bake_checks_kitchen_balance_sequentially(
         kitchen_id = load_builtin_locations(session).locations.kitchen_id
         record_manual_move(
             session,
-            from_location_id=kitchen_id,
-            to_location_id=stand.id,
-            size_id=single_size_recipe.size_id,
-            quantity=10,
+            ManualMove(
+                from_location_id=kitchen_id,
+                to_location_id=stand.id,
+                size_id=single_size_recipe.size_id,
+                quantity=10,
+            ),
             now=_NOW,
         )
         session.commit()
@@ -218,10 +237,12 @@ def test_undo_of_a_bake_checks_kitchen_balance_sequentially(
         kitchen_id = load_builtin_locations(session).locations.kitchen_id
         record_manual_move(
             session,
-            from_location_id=stand_id,
-            to_location_id=kitchen_id,
-            size_id=single_size_recipe.size_id,
-            quantity=10,
+            ManualMove(
+                from_location_id=stand_id,
+                to_location_id=kitchen_id,
+                size_id=single_size_recipe.size_id,
+                quantity=10,
+            ),
             now=_NOW,
         )
         session.commit()

@@ -7,7 +7,6 @@ See `docs/data-model.md`, "Corrections", and `docs/acceptance.md`,
 from datetime import UTC, datetime
 
 import pytest
-from conftest import BakeFixture, SingleSizeRecipe
 from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -18,11 +17,14 @@ from inventory.db.models import Entry, Location
 from inventory.db.models import Movement as MovementRow
 from inventory.db.transaction import write_transaction
 from inventory.db.writes import (
+    BakeRequest,
     InvalidDestinationLocationError,
+    ManualMove,
     record_bake,
     record_manual_move,
 )
 from inventory.domain.ledger import InsufficientStock
+from tests.db.seed import BakeFixture, SingleSizeRecipe
 
 _NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
@@ -45,10 +47,12 @@ def _bake_ten_units(engine: Engine, single_size_recipe: SingleSizeRecipe) -> Non
     with write_transaction(session_factory) as session:
         record_bake(
             session,
-            recipe_id=single_size_recipe.recipe_id,
-            baked=_NOW.date(),
-            expires=_NOW.date(),
-            counts={single_size_recipe.size_id: 10},
+            BakeRequest(
+                recipe_id=single_size_recipe.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={single_size_recipe.size_id: 10},
+            ),
             now=_NOW,
         )
 
@@ -66,10 +70,12 @@ def test_manual_removal_exceeding_on_hand_raises_and_writes_nothing(
         with pytest.raises(InsufficientStock):
             record_manual_move(
                 session,
-                from_location_id=kitchen_id,
-                to_location_id=waste_id,
-                size_id=single_size_recipe.size_id,
-                quantity=11,
+                ManualMove(
+                    from_location_id=kitchen_id,
+                    to_location_id=waste_id,
+                    size_id=single_size_recipe.size_id,
+                    quantity=11,
+                ),
                 now=_NOW,
             )
         session.rollback()
@@ -97,10 +103,12 @@ def test_manual_move_to_a_market_destination_is_rejected(
         with pytest.raises(InvalidDestinationLocationError):
             record_manual_move(
                 session,
-                from_location_id=kitchen_id,
-                to_location_id=market_id,
-                size_id=single_size_recipe.size_id,
-                quantity=1,
+                ManualMove(
+                    from_location_id=kitchen_id,
+                    to_location_id=market_id,
+                    size_id=single_size_recipe.size_id,
+                    quantity=1,
+                ),
                 now=_NOW,
             )
         session.rollback()
@@ -124,10 +132,12 @@ def test_manual_move_into_an_inactive_stand_is_rejected(
         with pytest.raises(InvalidDestinationLocationError):
             record_manual_move(
                 session,
-                from_location_id=kitchen_id,
-                to_location_id=stand_id,
-                size_id=single_size_recipe.size_id,
-                quantity=1,
+                ManualMove(
+                    from_location_id=kitchen_id,
+                    to_location_id=stand_id,
+                    size_id=single_size_recipe.size_id,
+                    quantity=1,
+                ),
                 now=_NOW,
             )
 
@@ -142,10 +152,12 @@ def test_manual_move_out_of_an_inactive_stand_succeeds(
         kitchen_id = load_builtin_locations(session).locations.kitchen_id
         record_manual_move(
             session,
-            from_location_id=kitchen_id,
-            to_location_id=stand_id,
-            size_id=single_size_recipe.size_id,
-            quantity=5,
+            ManualMove(
+                from_location_id=kitchen_id,
+                to_location_id=stand_id,
+                size_id=single_size_recipe.size_id,
+                quantity=5,
+            ),
             now=_NOW,
         )
         session.commit()
@@ -159,10 +171,12 @@ def test_manual_move_out_of_an_inactive_stand_succeeds(
         kitchen_id = load_builtin_locations(session).locations.kitchen_id
         entry_id = record_manual_move(
             session,
-            from_location_id=stand_id,
-            to_location_id=kitchen_id,
-            size_id=single_size_recipe.size_id,
-            quantity=5,
+            ManualMove(
+                from_location_id=stand_id,
+                to_location_id=kitchen_id,
+                size_id=single_size_recipe.size_id,
+                quantity=5,
+            ),
             now=_NOW,
         )
         session.commit()
@@ -177,10 +191,12 @@ def test_manual_move_naming_sold_for_a_zero_price_size_lands_in_sampled(
     with write_transaction(session_factory) as session:
         record_bake(
             session,
-            recipe_id=bake_fixture.recipe_id,
-            baked=_NOW.date(),
-            expires=_NOW.date(),
-            counts={bake_fixture.small_id: 3},  # small is priced at zero
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={bake_fixture.small_id: 3},  # small is priced at zero
+            ),
             now=_NOW,
         )
 
@@ -192,10 +208,12 @@ def test_manual_move_naming_sold_for_a_zero_price_size_lands_in_sampled(
 
         entry_id = record_manual_move(
             session,
-            from_location_id=kitchen_id,
-            to_location_id=sold_id,  # caller names Sold ...
-            size_id=bake_fixture.small_id,
-            quantity=1,
+            ManualMove(
+                from_location_id=kitchen_id,
+                to_location_id=sold_id,  # caller names Sold ...
+                size_id=bake_fixture.small_id,
+                quantity=1,
+            ),
             now=_NOW,
         )
         session.commit()

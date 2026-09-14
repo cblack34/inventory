@@ -8,7 +8,6 @@ voided, since a voided entry's own reversal rows already net it to zero.
 
 from datetime import UTC, datetime
 
-from conftest import BakeFixture
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -16,9 +15,10 @@ from sqlalchemy.orm import Session
 from inventory.db.builtins import load_builtin_locations
 from inventory.db.models import Movement as MovementRow
 from inventory.db.stock import load_stock, unit_costs
-from inventory.db.writes import record_bake, record_manual_move, undo
+from inventory.db.writes import BakeRequest, ManualMove, record_bake, record_manual_move, undo
 from inventory.domain.ledger import Movement as LedgerMovement
 from inventory.domain.ledger import on_hand
+from tests.db.seed import BakeFixture
 
 _NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
@@ -29,20 +29,28 @@ def test_load_stock_matches_an_independent_fold_over_raw_movements(
     with Session(engine) as session:
         record_bake(
             session,
-            recipe_id=bake_fixture.recipe_id,
-            baked=_NOW.date(),
-            expires=_NOW.date(),
-            counts={bake_fixture.large_id: 2, bake_fixture.medium_id: 4, bake_fixture.small_id: 2},
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={
+                    bake_fixture.large_id: 2,
+                    bake_fixture.medium_id: 4,
+                    bake_fixture.small_id: 2,
+                },
+            ),
             now=_NOW,
         )
         session.commit()
 
         record_manual_move(
             session,
-            from_location_id=load_builtin_locations(session).locations.kitchen_id,
-            to_location_id=load_builtin_locations(session).locations.waste_id,
-            size_id=bake_fixture.large_id,
-            quantity=1,
+            ManualMove(
+                from_location_id=load_builtin_locations(session).locations.kitchen_id,
+                to_location_id=load_builtin_locations(session).locations.waste_id,
+                size_id=bake_fixture.large_id,
+                quantity=1,
+            ),
             now=_NOW,
         )
         session.commit()
@@ -75,10 +83,12 @@ def test_load_stock_includes_movements_from_a_voided_entry(
     with Session(engine) as session:
         bake_batch_id = record_bake(
             session,
-            recipe_id=bake_fixture.recipe_id,
-            baked=_NOW.date(),
-            expires=_NOW.date(),
-            counts={bake_fixture.large_id: 5},
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={bake_fixture.large_id: 5},
+            ),
             now=_NOW,
         )
         session.commit()
@@ -99,10 +109,16 @@ def test_unit_costs_reads_frozen_batch_size_rows(engine: Engine, bake_fixture: B
     with Session(engine) as session:
         batch_id = record_bake(
             session,
-            recipe_id=bake_fixture.recipe_id,
-            baked=_NOW.date(),
-            expires=_NOW.date(),
-            counts={bake_fixture.large_id: 2, bake_fixture.medium_id: 4, bake_fixture.small_id: 2},
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={
+                    bake_fixture.large_id: 2,
+                    bake_fixture.medium_id: 4,
+                    bake_fixture.small_id: 2,
+                },
+            ),
             now=_NOW,
         )
         session.commit()

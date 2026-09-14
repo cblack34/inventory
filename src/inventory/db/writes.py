@@ -9,6 +9,7 @@ domain package already owns.
 """
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import date, datetime
 
 from sqlalchemy import select
@@ -101,15 +102,17 @@ def _bake_yields(session: Session, recipe_id: int, counts: Mapping[int, int]) ->
     ]
 
 
-def record_bake(  # noqa: PLR0913 -- signature pinned by issue #17.
-    session: Session,
-    *,
-    recipe_id: int,
-    baked: date,
-    expires: date,
-    counts: Mapping[int, int],
-    now: datetime,
-) -> int:
+@dataclass(frozen=True)
+class BakeRequest:
+    """Inputs to `record_bake`, grouped to stay under the arg-count lint."""
+
+    recipe_id: int
+    baked: date
+    expires: date
+    counts: Mapping[int, int]
+
+
+def record_bake(session: Session, request: BakeRequest, *, now: datetime) -> int:
     """Record a bake: frozen batch cost, per-size unit costs, and Production->Kitchen movements.
 
     Rejects `expires < baked` with `ExpiresBeforeBakedError` and rejects
@@ -118,11 +121,11 @@ def record_bake(  # noqa: PLR0913 -- signature pinned by issue #17.
     size absent from `counts`, or present with a zero count, gets no
     `batch_size` row and no movement.
     """
-    if expires < baked:
-        raise ExpiresBeforeBakedError(baked=baked, expires=expires)
+    if request.expires < request.baked:
+        raise ExpiresBeforeBakedError(baked=request.baked, expires=request.expires)
 
-    batch_cost_cents = _batch_cost_cents(session, recipe_id)
-    yields = _bake_yields(session, recipe_id, counts)
+    batch_cost_cents = _batch_cost_cents(session, request.recipe_id)
+    yields = _bake_yields(session, request.recipe_id, request.counts)
     unit_costs_by_size = split_unit_costs(batch_cost_cents, yields)
 
     builtins = load_builtin_locations(session)
@@ -132,10 +135,10 @@ def record_bake(  # noqa: PLR0913 -- signature pinned by issue #17.
     session.flush()
 
     batch = Batch(
-        recipe_id=recipe_id,
+        recipe_id=request.recipe_id,
         entry_id=entry.id,
-        baked=baked,
-        expires=expires,
+        baked=request.baked,
+        expires=request.expires,
         total_cost_cents=batch_cost_cents,
     )
     session.add(batch)
@@ -191,15 +194,17 @@ def _resolve_manual_destination(
     return to_location_id
 
 
-def record_manual_move(  # noqa: PLR0913 -- signature pinned by issue #17.
-    session: Session,
-    *,
-    from_location_id: int,
-    to_location_id: int,
-    size_id: int,
-    quantity: int,
-    now: datetime,
-) -> int:
+@dataclass(frozen=True)
+class ManualMove:
+    """Inputs to `record_manual_move`, grouped to stay under the arg-count lint."""
+
+    from_location_id: int
+    to_location_id: int
+    size_id: int
+    quantity: int
+
+
+def record_manual_move(session: Session, move: ManualMove, *, now: datetime) -> int:
     """Record a manual move or removal: FIFO from `from_location_id`.
 
     Source must differ from destination and be an inventory location.
@@ -209,22 +214,22 @@ def record_manual_move(  # noqa: PLR0913 -- signature pinned by issue #17.
     `domain.ledger.InsufficientStock` untouched when FIFO cannot cover
     `quantity`.
     """
-    if from_location_id == to_location_id:
-        raise SameLocationError(location_id=from_location_id)
+    if move.from_location_id == move.to_location_id:
+        raise SameLocationError(location_id=move.from_location_id)
 
     builtins = load_builtin_locations(session)
-    if from_location_id not in builtins.locations.inventory_location_ids:
-        raise InvalidSourceLocationError(location_id=from_location_id)
+    if move.from_location_id not in builtins.locations.inventory_location_ids:
+        raise InvalidSourceLocationError(location_id=move.from_location_id)
 
     destination_id = _resolve_manual_destination(
         session,
-        to_location_id=to_location_id,
-        size_id=size_id,
+        to_location_id=move.to_location_id,
+        size_id=move.size_id,
         locations=builtins.locations,
     )
 
     stock, batches = load_stock(session)
-    allocation = allocate_fifo(stock, from_location_id, size_id, quantity, batches)
+    allocation = allocate_fifo(stock, move.from_location_id, move.size_id, move.quantity, batches)
 
     entry = Entry(kind="manual", created_at=now, voided=False)
     session.add(entry)
@@ -235,8 +240,8 @@ def record_manual_move(  # noqa: PLR0913 -- signature pinned by issue #17.
             MovementRow(
                 entry_id=entry.id,
                 batch_id=batch_id,
-                size_id=size_id,
-                from_location_id=from_location_id,
+                size_id=move.size_id,
+                from_location_id=move.from_location_id,
                 to_location_id=destination_id,
                 quantity=allocated_quantity,
             )

@@ -7,7 +7,6 @@ estimate and batch cost split".
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import BakeFixture
 from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -15,8 +14,9 @@ from sqlalchemy.orm import Session
 from inventory.db.builtins import load_builtin_locations
 from inventory.db.models import Batch, BatchSize, Entry, Ingredient
 from inventory.db.models import Movement as MovementRow
-from inventory.db.writes import ExpiresBeforeBakedError, record_bake
+from inventory.db.writes import BakeRequest, ExpiresBeforeBakedError, record_bake
 from inventory.domain.costing import ZeroWeightError
+from tests.db.seed import BakeFixture
 
 _NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 _BAKED = _NOW.date()
@@ -36,10 +36,16 @@ def test_record_bake_writes_entry_batch_and_movements_with_pinned_unit_costs(
     with Session(engine) as session:
         batch_id = record_bake(
             session,
-            recipe_id=bake_fixture.recipe_id,
-            baked=_BAKED,
-            expires=_EXPIRES,
-            counts={bake_fixture.large_id: 2, bake_fixture.medium_id: 4, bake_fixture.small_id: 2},
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_BAKED,
+                expires=_EXPIRES,
+                counts={
+                    bake_fixture.large_id: 2,
+                    bake_fixture.medium_id: 4,
+                    bake_fixture.small_id: 2,
+                },
+            ),
             now=_NOW,
         )
         session.commit()
@@ -85,10 +91,12 @@ def test_record_bake_skips_zero_count_sizes(engine: Engine, bake_fixture: BakeFi
     with Session(engine) as session:
         batch_id = record_bake(
             session,
-            recipe_id=bake_fixture.recipe_id,
-            baked=_BAKED,
-            expires=_EXPIRES,
-            counts={bake_fixture.large_id: 2, bake_fixture.medium_id: 4},
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_BAKED,
+                expires=_EXPIRES,
+                counts={bake_fixture.large_id: 2, bake_fixture.medium_id: 4},
+            ),
             now=_NOW,
         )
         session.commit()
@@ -119,10 +127,16 @@ def test_record_bake_batch_cost_is_frozen_against_a_later_price_change(
     with Session(engine) as session:
         batch_id = record_bake(
             session,
-            recipe_id=bake_fixture.recipe_id,
-            baked=_BAKED,
-            expires=_EXPIRES,
-            counts={bake_fixture.large_id: 2, bake_fixture.medium_id: 4, bake_fixture.small_id: 2},
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_BAKED,
+                expires=_EXPIRES,
+                counts={
+                    bake_fixture.large_id: 2,
+                    bake_fixture.medium_id: 4,
+                    bake_fixture.small_id: 2,
+                },
+            ),
             now=_NOW,
         )
         session.commit()
@@ -155,10 +169,12 @@ def test_record_bake_rejects_all_zero_counts_and_writes_nothing(
         with pytest.raises(ZeroWeightError):
             record_bake(
                 session,
-                recipe_id=bake_fixture.recipe_id,
-                baked=_BAKED,
-                expires=_EXPIRES,
-                counts={bake_fixture.large_id: 0, bake_fixture.medium_id: 0},
+                BakeRequest(
+                    recipe_id=bake_fixture.recipe_id,
+                    baked=_BAKED,
+                    expires=_EXPIRES,
+                    counts={bake_fixture.large_id: 0, bake_fixture.medium_id: 0},
+                ),
                 now=_NOW,
             )
         session.rollback()
@@ -176,10 +192,12 @@ def test_record_bake_rejects_expires_before_baked_and_writes_nothing(
         with pytest.raises(ExpiresBeforeBakedError):
             record_bake(
                 session,
-                recipe_id=bake_fixture.recipe_id,
-                baked=_BAKED,
-                expires=_BAKED - timedelta(days=1),
-                counts={bake_fixture.large_id: 2},
+                BakeRequest(
+                    recipe_id=bake_fixture.recipe_id,
+                    baked=_BAKED,
+                    expires=_BAKED - timedelta(days=1),
+                    counts={bake_fixture.large_id: 2},
+                ),
                 now=_NOW,
             )
         session.rollback()
