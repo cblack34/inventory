@@ -3,12 +3,12 @@
 See `docs/acceptance.md`, "Locations" and "Login and deployment".
 """
 
+from alembic import command
 from alembic.config import Config
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from alembic import command
 from inventory.db.models import Location
 
 

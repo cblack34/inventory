@@ -12,11 +12,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from alembic import command
 from alembic.config import Config
 from sqlalchemy import URL
 from sqlalchemy.engine import Engine
 
-from alembic import command
 from inventory.db.engine import make_engine
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]

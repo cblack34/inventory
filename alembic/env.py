@@ -1,9 +1,9 @@
 import os
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import URL, engine_from_config, pool
 
-from alembic import context
 from inventory.db.models import Base
 
 # this is the Alembic Config object, which provides
