@@ -91,7 +91,7 @@ GitHub issues are the WIP tracker and source of task-level detail.
 
 - **Topology:** per-slice spine with leaf PRs.
 - **Branch or spine:** `slice/api`; leaves `api/foundation`, `api/catalog`, `api/ledger`.
-- **Final PR:** to be added in the delivery record.
+- **Final PR:** [#30](https://github.com/cblack34/inventory/pull/30).
 - **Human merge gate:** Only the human may physically merge the final PR to `main`. Agents must stop when it is ready.
 
 ## Amendments
@@ -102,9 +102,9 @@ None.
 
 Complete once when the final PR is ready for human merge. Do not use this section for WIP status.
 
-- **Outcome:** pending
-- **Verification:** pending
-- **Deviations:** pending
-- **Unresolved gates or risks:** pending
-- **Final PR:** pending
-- **Merge state:** pending
+- **Outcome:** Delivered 2026-09-14. `src/inventory/api/` and `src/inventory/settings.py` provide a FastAPI app under `/api/v1` that fails fast on bad configuration, authenticates with the shared password via a Starlette session cookie with a bounded per-IP throttle, serves the built frontend, and exposes ingredients, recipes, locations, batches, movements, reversals, visits, entries, and stock as resources over the persistence write path. Every error is an RFC 9457 Problem Details document; domain rejections name recipe, size, and location. The project floor moved to Python 3.14 in this slice.
+- **Verification:** `rm -rf .venv src/web/node_modules && make check` exit 0 on spine head b92e5e3 under Python 3.14.6 (pyright strict 0 errors, 394 pytest of which 134 are API tests, web stages green, types regenerated from 17 real paths with no drift). Leaf evidence on [#26](https://github.com/cblack34/inventory/pull/26), [#27](https://github.com/cblack34/inventory/pull/27), [#28](https://github.com/cblack34/inventory/pull/28), [#29](https://github.com/cblack34/inventory/pull/29): green CI and a zero-inline-comment Copilot pass at each final head. Every acceptance automated check that speaks HTTP has a test in `tests/api/`, and fail-fast startup is pinned by a subprocess test. Issues [#23](https://github.com/cblack34/inventory/issues/23), [#24](https://github.com/cblack34/inventory/issues/24), [#25](https://github.com/cblack34/inventory/issues/25) carry the detailed trail.
+- **Deviations:** An unplanned fourth leaf (#27) moved the project to Python 3.14 after the owner noticed compatibility shims for the 3.12 pin. `read_session`, `write_session`, and the clock moved to `api/deps.py` to break an import cycle. Ingredients may be reactivated (the agent's draft forbade it). Review cycles ran past the three-cycle bound on three of four leaves, each time on genuine findings, disclosed per PR. The domain planners' request types are consumed directly by the API rather than wrapped in db-layer duplicates.
+- **Unresolved gates or risks:** Hosting target remains open. The throttle keys on `request.client`, which needs uvicorn's proxy-header flags behind Caddy (recorded in tech-stack.md for the deployment slice). `GET /entries/{id}` filters the bounded history query in Python; a single-entry query is a cheap follow-up if history grows.
+- **Final PR:** [#30](https://github.com/cblack34/inventory/pull/30).
+- **Merge state:** Ready for the human to merge; agents do not merge to `main`.
