@@ -19,6 +19,17 @@ import inventory.domain as domain_pkg
 _FORBIDDEN_TYPES = {float, Decimal}
 
 
+def _mentions_forbidden_type(annotation: Any) -> bool:
+    """True if `annotation` is, or nests anywhere, a forbidden type.
+
+    Walks `typing.get_args` recursively so `float | None`, `list[float]`,
+    and `dict[str, Decimal]` are caught, not only a bare `float`.
+    """
+    if annotation in _FORBIDDEN_TYPES:
+        return True
+    return any(_mentions_forbidden_type(arg) for arg in typing.get_args(annotation))
+
+
 def _domain_dataclasses() -> list[type]:
     found: list[type] = []
     for module_info in pkgutil.walk_packages(domain_pkg.__path__, domain_pkg.__name__ + "."):
@@ -46,9 +57,18 @@ def test_no_domain_dataclass_field_is_float_or_decimal() -> None:
         hints: dict[str, Any] = typing.get_type_hints(dataclass_type)
         for field in dataclasses.fields(dataclass_type):
             field_type = hints.get(field.name, field.type)
-            if field_type in _FORBIDDEN_TYPES:
+            if _mentions_forbidden_type(field_type):
                 offenders.append(
                     f"{dataclass_type.__module__}.{dataclass_type.__qualname__}.{field.name}"
                 )
 
     assert offenders == []
+
+
+def test_forbidden_type_detection_sees_nested_annotations() -> None:
+    assert _mentions_forbidden_type(float)
+    assert _mentions_forbidden_type(float | None)
+    assert _mentions_forbidden_type(list[float])
+    assert _mentions_forbidden_type(dict[str, Decimal])
+    assert not _mentions_forbidden_type(int | None)
+    assert not _mentions_forbidden_type(dict[str, int])

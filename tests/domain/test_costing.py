@@ -2,6 +2,8 @@
 docs/acceptance.md.
 """
 
+import itertools
+
 import pytest
 
 from inventory.domain.costing import (
@@ -141,3 +143,29 @@ class TestUnitCostDriftBound:
         drift = abs(total_allocated_cents - batch_cost_cents)
 
         assert drift <= unit_cost_drift_bound(total_units)
+
+    @pytest.mark.parametrize(
+        ("batch_cost_cents", "weights_g", "counts"),
+        list(
+            itertools.product(
+                (1, 7, 99, 101, 250, 1000, 12_345),
+                ((1, 1), (10, 25), (200, 100, 50), (7, 13, 1)),
+                ((1, 1), (2, 2), (3, 5, 1), (20, 4, 9)),
+            )
+        ),
+    )
+    def test_drift_bound_holds_over_a_grid(
+        self, batch_cost_cents: int, weights_g: tuple[int, ...], counts: tuple[int, ...]
+    ) -> None:
+        # Cycle counts over weights so every (cost, weights, counts) shape is legal.
+        yields = [
+            SizeYield(size_id=index, portion_weight_g=weight_g, count=counts[index % len(counts)])
+            for index, weight_g in enumerate(weights_g)
+        ]
+        unit_costs = split_unit_costs(batch_cost_cents, yields)
+        total_units = sum(size_yield.count for size_yield in yields)
+        total_allocated_cents = sum(
+            unit_costs[size_yield.size_id] * size_yield.count for size_yield in yields
+        )
+
+        assert abs(total_allocated_cents - batch_cost_cents) <= unit_cost_drift_bound(total_units)
