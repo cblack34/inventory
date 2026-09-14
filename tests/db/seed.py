@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from inventory.db.models import Ingredient, Recipe, RecipeLine, Size
+from inventory.db.models import Ingredient, Location, Recipe, RecipeLine, Size
 
 
 @dataclass(frozen=True)
@@ -105,3 +105,21 @@ def seed_single_size_recipe(session: Session) -> SingleSizeRecipe:
     session.commit()
 
     return SingleSizeRecipe(recipe_id=recipe.id, size_id=size.id)
+
+
+@dataclass(frozen=True)
+class StandAndMarket:
+    """One active stand and one active market, for the visits leaf's tests."""
+
+    stand_id: int
+    market_id: int
+
+
+def seed_stand_and_market(session: Session) -> StandAndMarket:
+    stand = Location(name="Farm Stand", kind="stand", active=True)
+    market = Location(name="Saturday Market", kind="market", active=True)
+    session.add_all([stand, market])
+    session.flush()
+    session.commit()
+
+    return StandAndMarket(stand_id=stand.id, market_id=market.id)

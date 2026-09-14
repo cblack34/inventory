@@ -22,8 +22,10 @@ from inventory.db.engine import make_engine
 from tests.db.seed import (
     BakeFixture,
     SingleSizeRecipe,
+    StandAndMarket,
     seed_bake_fixture,
     seed_single_size_recipe,
+    seed_stand_and_market,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -81,3 +83,9 @@ def bake_fixture(engine: Engine) -> BakeFixture:
 def single_size_recipe(engine: Engine) -> SingleSizeRecipe:
     with Session(engine) as session:
         return seed_single_size_recipe(session)
+
+
+@pytest.fixture
+def stand_and_market(engine: Engine) -> StandAndMarket:
+    with Session(engine) as session:
+        return seed_stand_and_market(session)
