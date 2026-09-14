@@ -102,10 +102,19 @@ class NameConflictError(DomainError):
 
 
 def _flush_catching_name_conflict(session: Session, *, field: str, value: str) -> None:
+    """Translate a UNIQUE-constraint flush failure to `NameConflictError`, and only that failure.
+
+    Any other `IntegrityError` (e.g. a CHECK constraint on a column
+    Pydantic did not validate, reached by a caller that bypasses the
+    API schema) is a different problem than a name collision and must
+    not be misreported as one -- it re-raises unchanged.
+    """
     try:
         session.flush()
     except IntegrityError as exc:
-        raise NameConflictError(field=field, value=value) from exc
+        if "UNIQUE constraint failed" in str(exc.orig):
+            raise NameConflictError(field=field, value=value) from exc
+        raise
 
 
 # --- Ingredients -----------------------------------------------------------
@@ -334,19 +343,47 @@ def _apply_size_patches(session: Session, recipe_id: int, items: Sequence[SizePa
             _update_size(session, recipe_id, item.id, item)
 
 
-def _reject_zero_weight_for_recipe(session: Session, recipe_id: int) -> None:
+def _prospective_size_yields(
+    session: Session, recipe_id: int, items: Sequence[SizePatchInput]
+) -> list[SizeYield]:
+    """The recipe's size weights as they would be *after* `items` applied, computed with no write.
+
+    Merges each existing size's stored weight/yield with any patch item
+    naming its `id` (an unset field on the patch leaves the stored value
+    alone), then appends one entry per new-size item (`id` absent),
+    using `0` for a field the item leaves unset -- an incomplete new
+    size fails its own `IncompleteSizeError` check later, in
+    `_create_size`, before anything is written for it either way.
+    """
+    patches_by_id = {item.id: item for item in items if item.id is not None}
     rows = session.execute(
         select(Size.id, Size.portion_weight_g, Size.typical_yield_count).where(
             Size.recipe_id == recipe_id
         )
     ).all()
-    yields = [
-        SizeYield(
-            size_id=row.id, portion_weight_g=row.portion_weight_g, count=row.typical_yield_count
+    yields: list[SizeYield] = []
+    for row in rows:
+        patch = patches_by_id.get(row.id)
+        portion_weight_g = row.portion_weight_g
+        typical_yield_count = row.typical_yield_count
+        if patch is not None:
+            if patch.portion_weight_g is not None:
+                portion_weight_g = patch.portion_weight_g
+            if patch.typical_yield_count is not None:
+                typical_yield_count = patch.typical_yield_count
+        yields.append(
+            SizeYield(size_id=row.id, portion_weight_g=portion_weight_g, count=typical_yield_count)
         )
-        for row in rows
-    ]
-    _reject_zero_typical_weight(yields)
+    yields.extend(
+        SizeYield(
+            size_id=0,
+            portion_weight_g=item.portion_weight_g or 0,
+            count=item.typical_yield_count or 0,
+        )
+        for item in items
+        if item.id is None
+    )
+    return yields
 
 
 def update_recipe(session: Session, recipe_id: int, request: RecipePatchRequest) -> Recipe:
@@ -359,8 +396,8 @@ def update_recipe(session: Session, recipe_id: int, request: RecipePatchRequest)
     if request.lines is not None:
         _replace_lines(session, recipe_id, request.lines)
     if request.sizes is not None:
+        _reject_zero_typical_weight(_prospective_size_yields(session, recipe_id, request.sizes))
         _apply_size_patches(session, recipe_id, request.sizes)
-        _reject_zero_weight_for_recipe(session, recipe_id)
     session.flush()
     return recipe
 

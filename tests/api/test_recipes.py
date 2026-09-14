@@ -146,6 +146,54 @@ def test_patch_can_add_and_edit_sizes_but_never_remove_one(client: TestClient) -
     assert sizes_by_name["Small"]["price_cents"] == 100
 
 
+def test_patch_size_with_explicit_null_id_is_rejected(client: TestClient) -> None:
+    """Only an *absent* `id` key means create; `"id": null` is a validation error, not a create."""
+    login(client)
+    recipe = _create_recipe_with_two_sizes(client)
+
+    response = client.patch(
+        f"/api/v1/recipes/{recipe['id']}",
+        json={
+            "sizes": [
+                {
+                    "id": None,
+                    "name": "Extra Large",
+                    "portion_weight_g": 80,
+                    "price_cents": 500,
+                    "typical_yield_count": 1,
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 422
+    assert "errors" in response.json()
+
+
+def test_patch_size_without_id_key_creates(client: TestClient) -> None:
+    """The same payload minus the `id` key is a valid create, confirming the null case above."""
+    login(client)
+    recipe = _create_recipe_with_two_sizes(client)
+
+    response = client.patch(
+        f"/api/v1/recipes/{recipe['id']}",
+        json={
+            "sizes": [
+                {
+                    "name": "Extra Large",
+                    "portion_weight_g": 80,
+                    "price_cents": 500,
+                    "typical_yield_count": 1,
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    names = {size["name"] for size in response.json()["sizes"]}
+    assert "Extra Large" in names
+
+
 def test_patch_size_id_belonging_to_another_recipe_is_rejected(client: TestClient) -> None:
     login(client)
     recipe_a = _create_recipe_with_two_sizes(client)

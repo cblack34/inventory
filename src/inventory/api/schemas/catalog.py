@@ -10,9 +10,9 @@ Money fields end in `_cents`, weight fields in `_g`, matching
 `inventory.db.models`.
 """
 
-from typing import Literal
+from typing import Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from inventory.db.models import Recipe
 from inventory.domain.costing import RecipeLine as CostLine
@@ -84,6 +84,19 @@ class SizePatchItem(BaseModel):
     portion_weight_g: int | None = Field(default=None, ge=1)
     price_cents: int | None = Field(default=None, ge=0)
     typical_yield_count: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_explicit_null_id(cls, data: Any) -> Any:
+        """Reject `{"id": null, ...}`: only an absent `id` key means create.
+
+        Raising here (rather than loosening the field type) keeps the
+        rejection inside `RequestValidationError`, so it surfaces as a
+        422 with an `errors` list like any other shape violation.
+        """
+        if isinstance(data, dict) and cast(dict[str, Any], data).get("id", "present") is None:
+            raise ValueError("id must not be null; omit the key entirely to create a new size")
+        return cast(Any, data)
 
 
 class SizeRead(BaseModel):
