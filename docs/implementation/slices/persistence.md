@@ -90,7 +90,7 @@ GitHub issues are the WIP tracker and source of task-level detail.
 
 - **Topology:** per-slice spine with leaf PRs.
 - **Branch or spine:** `slice/persistence`; leaves `persistence/schema`, `persistence/writes`, `persistence/visits`.
-- **Final PR:** to be added in the delivery record.
+- **Final PR:** [#22](https://github.com/cblack34/inventory/pull/22).
 - **Human merge gate:** Only the human may physically merge the final PR to `main`. Agents must stop when it is ready.
 
 ## Amendments
@@ -101,9 +101,9 @@ None.
 
 Complete once when the final PR is ready for human merge. Do not use this section for WIP status.
 
-- **Outcome:** pending
-- **Verification:** pending
-- **Deviations:** pending
-- **Unresolved gates or risks:** pending
-- **Final PR:** pending
-- **Merge state:** pending
+- **Outcome:** Delivered 2026-09-14. `src/inventory/db/` holds the SQLAlchemy models for the ten tables in `docs/schema.md`, the initial Alembic migration with the five built-in locations and database-level cost-freezing triggers, an engine factory whose `write_engine` view serializes ledger writes under `BEGIN IMMEDIATE`, and a write path that records bakes, manual moves, undo, and stand and market visits atomically by calling the domain planners. Stock, history, and visit profit are read from the ledger by queries. No HTTP yet.
+- **Verification:** `rm -rf .venv src/web/node_modules && make check` exit 0 on spine head 965c390 (pyright strict 0 errors, 245 pytest of which 87 are database tests, web stages green, types drift clean). Leaf evidence on [#19](https://github.com/cblack34/inventory/pull/19), [#20](https://github.com/cblack34/inventory/pull/20), [#21](https://github.com/cblack34/inventory/pull/21): green CI and a zero-inline-comment Copilot pass at each final head. Every acceptance behavior expressible without HTTP has a test, including the two-thread serialization proof and the raw-SQL cost-update rejection. Issues [#16](https://github.com/cblack34/inventory/issues/16), [#17](https://github.com/cblack34/inventory/issues/17), [#18](https://github.com/cblack34/inventory/issues/18) carry the detailed trail.
+- **Deviations:** `BEGIN IMMEDIATE` became opt-in per connection after review found the always-on hook made readers serialize. Request dataclasses replaced the multi-parameter signatures sketched in the issues. `profit_from_costs` was added to the domain so `history` and `visit_profit` share one rule. The review loop on #19 ran five cycles against a bound of three; each extra cycle found a real defect. One red push on #19 (formatting) was the lead's shell error, corrected immediately.
+- **Unresolved gates or risks:** Hosting target remains open (unchanged). Ingredient, recipe, size, and location write paths are deferred to the API slice together with their Pydantic validation. The domain-adjacent guards added here (non-negative and duplicate-free rows, foreign size ids, non-positive manual quantities) exist so no internal caller can create an empty or misleading entry; Pydantic remains the primary boundary.
+- **Final PR:** [#22](https://github.com/cblack34/inventory/pull/22).
+- **Merge state:** Ready for the human to merge; agents do not merge to `main`.
