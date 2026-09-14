@@ -30,12 +30,22 @@ _TRANSFERABLE_KINDS = ("kitchen", "stand")
 
 
 class InvalidQuantityError(DomainError):
-    """A count or quantity outside what the write path accepts."""
+    """A count or quantity below the minimum the write path accepts."""
 
-    def __init__(self, *, field: str, value: int) -> None:
+    def __init__(self, *, field: str, value: int, minimum: int) -> None:
         self.field = field
         self.value = value
-        super().__init__(f"{field} must be non-negative, got {value}")
+        self.minimum = minimum
+        super().__init__(f"{field} must be at least {minimum}, got {value}")
+
+
+class UnknownSizeError(DomainError):
+    """A bake named a size that does not belong to its recipe."""
+
+    def __init__(self, *, recipe_id: int, size_ids: frozenset[int]) -> None:
+        self.recipe_id = recipe_id
+        self.size_ids = size_ids
+        super().__init__(f"sizes {sorted(size_ids)} do not belong to recipe {recipe_id}")
 
 
 class ExpiresBeforeBakedError(DomainError):
@@ -109,10 +119,13 @@ def _batch_cost_cents(session: Session, recipe_id: int) -> int:
 def _bake_yields(session: Session, recipe_id: int, counts: Mapping[int, int]) -> list[SizeYield]:
     for size_id, count in counts.items():
         if count < 0:
-            raise InvalidQuantityError(field=f"counts[{size_id}]", value=count)
+            raise InvalidQuantityError(field=f"counts[{size_id}]", value=count, minimum=0)
     sizes = session.execute(
         select(Size.id, Size.portion_weight_g).where(Size.recipe_id == recipe_id)
     ).all()
+    unknown = frozenset(counts) - {size.id for size in sizes}
+    if unknown:
+        raise UnknownSizeError(recipe_id=recipe_id, size_ids=unknown)
     return [
         SizeYield(
             size_id=size.id, portion_weight_g=size.portion_weight_g, count=counts.get(size.id, 0)
@@ -235,7 +248,7 @@ def record_manual_move(session: Session, move: ManualMove, *, now: datetime) -> 
     `quantity`.
     """
     if move.quantity <= 0:
-        raise InvalidQuantityError(field="quantity", value=move.quantity)
+        raise InvalidQuantityError(field="quantity", value=move.quantity, minimum=1)
     if move.from_location_id == move.to_location_id:
         raise SameLocationError(location_id=move.from_location_id)
 

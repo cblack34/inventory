@@ -18,10 +18,11 @@ from inventory.db.writes import (
     BakeRequest,
     ExpiresBeforeBakedError,
     InvalidQuantityError,
+    UnknownSizeError,
     record_bake,
 )
 from inventory.domain.costing import ZeroWeightError
-from tests.db.seed import BakeFixture
+from tests.db.seed import BakeFixture, SingleSizeRecipe
 
 _NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 _BAKED = _NOW.date()
@@ -223,3 +224,20 @@ def test_bake_with_a_negative_count_is_rejected(engine: Engine, bake_fixture: Ba
             ),
             now=_NOW,
         )
+
+
+def test_bake_naming_a_size_from_another_recipe_is_rejected(
+    engine: Engine, bake_fixture: BakeFixture, single_size_recipe: SingleSizeRecipe
+) -> None:
+    with Session(engine) as session, pytest.raises(UnknownSizeError) as excinfo:
+        record_bake(
+            session,
+            BakeRequest(
+                recipe_id=bake_fixture.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={bake_fixture.large_id: 1, single_size_recipe.size_id: 5},
+            ),
+            now=_NOW,
+        )
+    assert excinfo.value.size_ids == {single_size_recipe.size_id}
