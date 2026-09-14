@@ -61,6 +61,7 @@ Directives that are not invariants but must hold: the stack in [`tech-stack.md`]
 - **Every movement belongs to exactly one entry: bake, visit, manual, or reversal.** A visit is an entry, so every movement it creates references that visit and profit per visit is one query. A bake is an entry too; its Production-to-Kitchen movements reference it and the batch it creates stores a reference back to it. A manual operation is also an entry and may contain several movement rows, one per batch FIFO selected. Undo appends a reversal entry that targets any of the other three kinds.
 - **Extension seams, deliberately empty:** the location kind enum is the full list in [`data-model.md`](data-model.md) (`kitchen`, `stand`, `market`, `production`, `sold`, `waste`, `sampled`), but only `stand` and `market` are user-creatable today, leaving room to add a third user-creatable kind later; visit revenue is one field so Square import could later populate it. Build neither.
 - **Auth is a single shared password** compared server-side with a constant-time check (`secrets.compare_digest`), session held in a signed cookie. The password and cookie secret come from environment variables. Reason: two users on the internet need a lock, not an identity system.
+- **The API is versioned under `/api/v1` and is resource-shaped, not action-shaped.** Every entry kind is a noun: a bake is `POST /api/v1/batches`, a stand or market visit is `POST /api/v1/visits` with the kind in the payload, a manual move or toss is `POST /api/v1/movements`, and undo is `POST /api/v1/reversals` naming the entry it reverses. History is `GET /api/v1/entries`, derived stock is `GET /api/v1/stock`, login is `POST /api/v1/session`, and ingredients, recipes, and locations are ordinary collections. No route is a verb. Reason: the data model already names these as entry kinds, and a reversal resource satisfies "undo is its own endpoint, not an entry update" without an RPC-style route.
 
 Details: [`data-model.md`](data-model.md), [`tech-stack.md`](tech-stack.md).
 
@@ -86,7 +87,7 @@ Open gates, none blocking implementation:
 
 - **Hosting target.** The user has not chosen between a generic VPS and an AWS Lightsail instance (a VM running Docker Compose with an attached block disk); the single-container plus persistent-volume shape works on both. AWS Lightsail Container Service and AWS App Runner are rejected: neither offers a persistent disk for SQLite. Decide before the first deployment.
 
-No external standards or licenses shape this project. No research doc is needed.
+No external standards shape this project; dependency licensing follows the policy in [`tech-stack.md`](tech-stack.md). No research doc is needed.
 
 ## Risks and failure modes
 
@@ -108,7 +109,7 @@ No external standards or licenses shape this project. No research doc is needed.
 
 _This is strategic guidance, not a required sequence. The implementation agent should evaluate it against the live repository and may reorder it when code, tests, or unforeseen constraints support a better plan._
 
-1. **Repository skeleton, tooling, CI, and the `make check` and `make e2e` targets.** Reason: every later PR is gated on them, and CI does not exist yet.
+1. **Repository skeleton, tooling, CI, and the `make check` target.** Reason: every later PR is gated on it, and CI does not exist yet. `make e2e` arrives with the login and home screens, the first thing a smoke test can drive.
 2. **Domain core: ledger, FIFO, batch cost, cost split, settlement, profit, as pure Python with tests.** Reason: it is the product and every screen depends on it; getting it right with no framework in the way is cheapest.
 3. **Persistence, migrations, built-in locations, and the API for ingredients, recipes, bakes, movements, and visits.** Reason: exposes the core; unlocks type generation.
 4. **Frontend: recipes, bake, visit, home, login, in whatever order lets the owners start entering real data soonest.** Reason: real data exposes model mistakes faster than tests.
