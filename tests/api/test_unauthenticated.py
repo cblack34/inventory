@@ -100,3 +100,13 @@ def test_authenticated_app_route_serves_the_spa_shell(client: TestClient) -> Non
 
     assert response.status_code == 200
     assert "inventory" in response.text
+
+
+def test_index_html_is_gated_like_any_shell_path(client: TestClient) -> None:
+    unauthenticated = client.get("/index.html", follow_redirects=False)
+    assert unauthenticated.status_code == 303
+
+    login(client)
+    authenticated = client.get("/index.html")
+    assert authenticated.status_code == 200
+    assert "inventory" in authenticated.text

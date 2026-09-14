@@ -17,7 +17,7 @@ from collections.abc import Callable
 from typing import Literal
 
 from fastapi import APIRouter, FastAPI, Request, Response
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from inventory.api.problems import ProblemHTTPException, problem_response
@@ -151,7 +151,9 @@ class LoginRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    password: str
+    # Bounded so the throttle lock is never held for an attacker-chosen
+    # amount of encoding and comparison work.
+    password: str = Field(min_length=1, max_length=256)
 
 
 def require_session(request: Request) -> None:

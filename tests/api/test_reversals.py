@@ -198,3 +198,12 @@ def test_manual_drain_after_a_visit_blocks_undo_of_that_visit_with_nothing_chang
     assert entries_after == entries_before
     visit_entry = next(entry for entry in entries_after if entry["entry_id"] == entry_id)
     assert visit_entry["voided"] is False
+
+
+def test_non_positive_entry_id_is_a_validation_error_not_a_404(client: TestClient) -> None:
+    login(client)
+
+    response = client.post("/api/v1/reversals", json={"entry_id": -1})
+
+    assert response.status_code == 422
+    assert response.json()["errors"]

@@ -97,3 +97,10 @@ def test_tampered_cookie_is_treated_as_unauthenticated(app: FastAPI) -> None:
         response = client.get("/api/v1/_test/probe")
 
     assert response.status_code == 401
+
+
+def test_overlong_password_is_rejected_by_validation(client: TestClient) -> None:
+    response = client.post("/api/v1/session", json={"password": "x" * 257})
+
+    assert response.status_code == 422
+    assert response.json()["errors"]

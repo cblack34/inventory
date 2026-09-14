@@ -27,7 +27,8 @@ def _root_dist_file(dist_dir: Path, normalized_path: str) -> Path | None:
     outside `dist_dir` (`/assets` is unaffected -- it is a separate
     `StaticFiles` mount matched before this catch-all route ever runs).
     """
-    if not normalized_path:
+    if not normalized_path or normalized_path.lower() == "index.html":
+        # The shell itself is gated by the session check below, never public.
         return None
     resolved_dist = dist_dir.resolve()
     candidate = (dist_dir / normalized_path).resolve()
