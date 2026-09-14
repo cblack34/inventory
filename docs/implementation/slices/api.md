@@ -62,7 +62,7 @@ Persistence already enforces atomicity and serialization, so routes stay thin. T
 
 ## High-level approach
 
-Three serial leaf PRs into `slice/api`, each delegated with its issue as the packet. The foundation leaf establishes the app, auth, and error envelope with a tiny protected probe used only by tests; catalog and ledger add routers and their persistence functions. Copilot is requested by hand on each leaf; the spine PR to `main` gets it automatically.
+Three serial leaf PRs into `slice/api`, each delegated with its issue as the packet. The foundation leaf establishes the app, auth, and error envelope with a tiny protected probe used only by tests; catalog and ledger add routers and their persistence functions. A fourth, unplanned leaf (#27, no issue) moved the project floor to Python 3.14 after the owner noticed compatibility shims for the 3.12 pin; it ran in parallel with catalog and landed between foundation and catalog. Copilot is requested by hand on each leaf; the spine PR to `main` gets it automatically.
 
 ## Verification
 
@@ -84,7 +84,8 @@ GitHub issues are the WIP tracker and source of task-level detail.
 | Issue | Purpose | Dependencies |
 | --- | --- | --- |
 | [#23](https://github.com/cblack34/inventory/issues/23) — api/foundation: settings, app factory, Problem Details errors, session auth, static mount | The app skeleton every route depends on | None |
-| [#24](https://github.com/cblack34/inventory/issues/24) — api/catalog: ingredients, recipes with sizes and cost estimate, locations | Catalog resources and their write paths | #23 |
+| [PR #27](https://github.com/cblack34/inventory/pull/27) — api/python314 (no issue; owner-raised during review) | Move the project floor to Python 3.14, drop future-annotations shims | #23 |
+| [#24](https://github.com/cblack34/inventory/issues/24) — api/catalog: ingredients, recipes with sizes and cost estimate, locations | Catalog resources and their write paths | #23, #27 |
 | [#25](https://github.com/cblack34/inventory/issues/25) — api/ledger: batches, movements, reversals, visits, entries, stock | Ledger resources over the persistence write path | #24 |
 
 ## Delivery shape
