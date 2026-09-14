@@ -7,8 +7,6 @@ fields as extension members, and a validation rejection carries an
 `errors` list.
 """
 
-from __future__ import annotations
-
 import re
 from collections.abc import Mapping
 from http import HTTPStatus

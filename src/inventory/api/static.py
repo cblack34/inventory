@@ -7,8 +7,6 @@ are FastAPI's disabled documentation routes and must stay 404, not fall
 through to the SPA catch-all below.
 """
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 
