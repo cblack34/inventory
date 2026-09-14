@@ -14,8 +14,6 @@ from sqlalchemy.orm import Session
 from inventory.api.deps import today
 from inventory.db.builtins import load_builtin_locations
 from inventory.db.models import Movement as MovementRow
-from inventory.domain.ledger import Movement as LedgerMovement
-from inventory.domain.ledger import on_hand
 from tests.api.ledger_helpers import (
     bake,
     builtin_location_id,
@@ -28,35 +26,26 @@ from tests.api.probes import login
 
 
 def _independent_fold_by_location_and_size(app: FastAPI) -> dict[tuple[int, int], int]:
-    """On-hand per (location, size), folded straight from the `movement` table.
+    """On-hand per (location, size), accumulated straight from the `movement` table.
 
-    Opens its own `Session` on the app's engine and walks
-    `inventory.domain.ledger.on_hand` over `Movement` dataclasses built
-    from the raw rows -- not through `inventory.db.queries.stock_by_location`,
-    the code path `GET /api/v1/stock` itself uses -- so a bug shared by
-    both paths can't cancel out against a hard-coded expected number.
+    Opens its own `Session` on the app's engine and sums raw rows by hand:
+    plus at the destination, minus at the source, inventory locations
+    only. It deliberately does not call the ledger's `on_hand`, which is
+    the fold `GET /api/v1/stock` itself uses, so a bug in that fold cannot
+    cancel out against the expected value.
     """
     with Session(app.state.engine) as session:
         inventory_location_ids = load_builtin_locations(session).locations.inventory_location_ids
         rows = session.execute(select(MovementRow)).scalars().all()
-        movements = [
-            LedgerMovement(
-                id=row.id,
-                batch_id=row.batch_id,
-                size_id=row.size_id,
-                from_location_id=row.from_location_id,
-                to_location_id=row.to_location_id,
-                quantity=row.quantity,
-            )
-            for row in rows
-        ]
-        stock = on_hand(movements, inventory_location_ids)
-
-    totals: dict[tuple[int, int], int] = {}
-    for (location_id, size_id, _batch_id), quantity in stock.items():
-        key = (location_id, size_id)
-        totals[key] = totals.get(key, 0) + quantity
-    return totals
+        totals: dict[tuple[int, int], int] = {}
+        for row in rows:
+            if row.to_location_id in inventory_location_ids:
+                key = (row.to_location_id, row.size_id)
+                totals[key] = totals.get(key, 0) + row.quantity
+            if row.from_location_id in inventory_location_ids:
+                key = (row.from_location_id, row.size_id)
+                totals[key] = totals.get(key, 0) - row.quantity
+    return {key: quantity for key, quantity in totals.items() if quantity != 0}
 
 
 def test_stock_matches_an_independent_fold_over_the_movements_made(
