@@ -9,10 +9,11 @@ part of this container.
 
 ## Configure
 
-Copy the example environment file and fill in real values:
+Copy the example environment file, readable only by you since it will hold
+both secrets, and fill in real values:
 
 ```bash
-cp .env.example .env
+install -m 600 .env.example .env
 ```
 
 - `SHARED_PASSWORD` -- the one password both users log in with. No default
