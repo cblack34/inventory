@@ -11,6 +11,15 @@ export function Layout({ children }: { children: ReactNode }) {
 					<Link to="/" className="text-sm font-medium">
 						Home
 					</Link>
+					<Link to="/ingredients" className="text-sm font-medium">
+						Ingredients
+					</Link>
+					<Link to="/recipes" className="text-sm font-medium">
+						Recipes
+					</Link>
+					<Link to="/locations" className="text-sm font-medium">
+						Locations
+					</Link>
 				</nav>
 			</header>
 			<main className="flex-1 px-4 py-4">{children}</main>
