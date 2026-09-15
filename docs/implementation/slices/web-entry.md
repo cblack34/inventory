@@ -92,7 +92,7 @@ GitHub issues are the WIP tracker and source of task-level detail.
 
 - **Topology:** per-slice spine with leaf PRs.
 - **Branch or spine:** `slice/web-entry`; leaves `web-entry/catalog`, `web-entry/bake-move`, `web-entry/visits`.
-- **Final PR:** to be opened when verification passes on the spine.
+- **Final PR:** [#48](https://github.com/cblack34/inventory/pull/48).
 - **Human merge gate:** Only the human may physically merge the final PR to `main`. Agents must stop when it is ready.
 
 ## Amendments
@@ -103,9 +103,9 @@ None.
 
 Complete once when the final PR is ready for human merge. Do not use this section for WIP status.
 
-- **Outcome:** pending.
-- **Verification:** pending.
-- **Deviations:** pending.
-- **Unresolved gates or risks:** pending.
-- **Final PR:** pending.
-- **Merge state:** pending.
+- **Outcome:** Delivered 2026-09-15. `src/web/src/features/catalog/` (ingredients, locations, recipes with sizes and the API's estimated unit cost), `features/bake/` (bake form with expiration prefilled from shelf life and counts from typical yield), `features/movements/` (manual move with the data-model destination rules), and `features/visits/` (stand and market forms with the acceptance prefills, a saved-visit view with expected versus actual, Shrink or Difference, and profit with three cost lines); routes and a wrapping nav in the shell; history cards link to saved visits. One shared `lib/dollars.ts` parses dollars to cents by string math with the API's bound.
+- **Verification:** `make check` exit 0 on code head 02dba5b (vitest 30). `make e2e` was not run locally on the spine because the owner's Compose container held port 8000; CI runs it on the spine PR, and the leaf PRs' CI ran it. A full walkthrough through the real screens at 375×812 on a fresh database compared 37 screen values with the API and all matched (recipe costs, batch total and unit costs, stand visit expected 300 / shrink 50 / profit 136, market visit expected 600 / difference 50 / profit -384, priced `returned` empty and zero-price `returned` prefilled 0, toss and undo restoring Kitchen stock, Expired badge from a back-dated bake); every screen measured `scrollWidth === 375`. Leaf evidence on [#45](https://github.com/cblack34/inventory/pull/45), [#46](https://github.com/cblack34/inventory/pull/46), [#47](https://github.com/cblack34/inventory/pull/47); issues [#42](https://github.com/cblack34/inventory/issues/42), [#43](https://github.com/cblack34/inventory/issues/43), [#44](https://github.com/cblack34/inventory/issues/44) carry the trail. The only commit after the code head is this record.
+- **Deviations:** Two leaves created `components/ui/select.tsx` with different APIs; the native one was renamed `NativeSelect` on the spine. The visits leaf's duplicate dollars helper was folded into `lib/dollars.ts` on the spine. After #45 merged, the other two leaves conflicted with the spine in `App.tsx` and `Layout.tsx`; CI runs on the PR merge ref, so it silently stopped running on their pushes until each leaf was re-synced (the shared-file "append only" rule prevents semantic conflicts but not textual ones). Copilot claims pushed back with evidence: shadcn's `data-checked`/`data-open` selectors are custom variants over Radix `data-state`; the create-mode Remove size control deletes nothing persisted. The bake date defaults from the browser clock rather than the business timezone; deferred, since a fix needs an API endpoint.
+- **Unresolved gates or risks:** Hosting target open. Owner's phone check of every screen at 375 px. Backlog [#37](https://github.com/cblack34/inventory/issues/37) untouched. Deferred: business-date endpoint for the bake prefill; the CI job split noted for the deployment work.
+- **Final PR:** [#48](https://github.com/cblack34/inventory/pull/48).
+- **Merge state:** Ready for the human to merge once CI (including `make e2e`) and the Copilot pass are green; agents do not merge to `main`.
