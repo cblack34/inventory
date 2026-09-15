@@ -4,6 +4,7 @@ import { useParams } from "react-router";
 import { request } from "@/api/client";
 import type { components } from "@/api/types";
 import { problemMessage } from "@/lib/problemMessage";
+import { parseRouteId } from "@/lib/routeId";
 import { RecipeForm } from "./RecipeForm";
 import {
 	type RecipeFormValues,
@@ -15,20 +16,6 @@ type IngredientRead = components["schemas"]["IngredientRead"];
 type RecipeRead = components["schemas"]["RecipeRead"];
 
 /**
- * Parses the `:recipeId` route param, or `null` if it is missing or not a
- * positive integer. Requires the entire string to be digits before parsing —
- * `Number.parseInt` alone would accept "1.5" or "1abc" as `1`, matching the
- * wrong recipe for a malformed URL.
- */
-function parseRecipeId(param: string | undefined): number | null {
-	if (!param || !/^\d+$/.test(param)) {
-		return null;
-	}
-	const id = Number(param);
-	return Number.isSafeInteger(id) && id > 0 ? id : null;
-}
-
-/**
  * View and edit an existing recipe. Sizes show `estimated_unit_cost_cents`
  * from the last fetch; TanStack Query's default zero stale time means
  * revisiting this screen after an ingredient price change refetches and
@@ -36,7 +23,7 @@ function parseRecipeId(param: string | undefined): number | null {
  */
 export function RecipeDetailPage() {
 	const { recipeId: recipeIdParam } = useParams();
-	const recipeId = parseRecipeId(recipeIdParam);
+	const recipeId = parseRouteId(recipeIdParam);
 
 	const recipeQuery = useQuery({
 		queryKey: ["recipes", recipeId],
@@ -76,10 +63,10 @@ export function RecipeDetailPage() {
 	if (recipeQuery.isPending || ingredientsQuery.isPending) {
 		return <p>Loading recipe…</p>;
 	}
-	if (recipeQuery.isError) {
+	if (recipeQuery.isError && recipeQuery.data === undefined) {
 		return <p role="alert">{problemMessage(recipeQuery.error)}</p>;
 	}
-	if (ingredientsQuery.isError) {
+	if (ingredientsQuery.isError && ingredientsQuery.data === undefined) {
 		return <p role="alert">{problemMessage(ingredientsQuery.error)}</p>;
 	}
 

@@ -34,7 +34,7 @@ export function NewRecipePage() {
 	if (ingredientsQuery.isPending) {
 		return <p>Loading…</p>;
 	}
-	if (ingredientsQuery.isError) {
+	if (ingredientsQuery.isError && ingredientsQuery.data === undefined) {
 		return <p role="alert">{problemMessage(ingredientsQuery.error)}</p>;
 	}
 

@@ -21,4 +21,8 @@ describe("addDays", () => {
 	it("accepts zero days as a no-op", () => {
 		expect(addDays("2026-06-15", 0)).toBe("2026-06-15");
 	});
+
+	it("returns null instead of throwing when the shift lands outside JS's representable Date range", () => {
+		expect(addDays("2026-01-01", 100_000_000)).toBeNull();
+	});
 });

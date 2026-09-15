@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { request } from "@/api/client";
@@ -50,7 +51,14 @@ type BakeFormProps = {
  * Keyed by `recipe.id` from the parent so switching recipes remounts this
  * form with fresh defaults instead of syncing state through an effect.
  */
-export function BakeForm({ recipe, onBaked }: BakeFormProps) {
+export function BakeForm({ recipe: recipeProp, onBaked }: BakeFormProps) {
+	// Captured once at mount: a background `["recipes"]` refetch can replace
+	// `recipe.sizes` (reorder, add, remove a size) without changing
+	// `recipe.id`, and RHF's index-ordered `counts` would then be submitted
+	// against the wrong size. Freezing the snapshot the form was built from
+	// keeps every index — inputs, errors, and the submitted payload — pinned
+	// to the sizes this form actually rendered.
+	const [recipe] = useState(() => recipeProp);
 	const queryClient = useQueryClient();
 	const baked = todayIsoDate();
 	const {
@@ -61,7 +69,10 @@ export function BakeForm({ recipe, onBaked }: BakeFormProps) {
 		resolver: zodResolver(bakeSchema()),
 		defaultValues: {
 			baked,
-			expires: addDays(baked, recipe.shelf_life_days),
+			// Falls back to the baked date itself if the shelf life pushes the
+			// expiration outside JavaScript's representable `Date` range — the
+			// user can still edit the prefilled date by hand.
+			expires: addDays(baked, recipe.shelf_life_days) ?? baked,
 			counts: recipe.sizes.map((size) => size.typical_yield_count),
 		},
 	});

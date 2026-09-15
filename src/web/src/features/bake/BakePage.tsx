@@ -31,7 +31,7 @@ export function BakePage() {
 	if (recipesQuery.isPending) {
 		return <p>Loading recipes…</p>;
 	}
-	if (recipesQuery.isError) {
+	if (recipesQuery.isError && recipesQuery.data === undefined) {
 		return <p role="alert">{problemMessage(recipesQuery.error)}</p>;
 	}
 

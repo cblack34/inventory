@@ -5,6 +5,7 @@ import type { components } from "@/api/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCents } from "@/lib/money";
 import { problemMessage } from "@/lib/problemMessage";
+import { parseRouteId } from "@/lib/routeId";
 
 type VisitRead = components["schemas"]["VisitRead"];
 type LocationRead = components["schemas"]["LocationRead"];
@@ -16,19 +17,19 @@ type LocationRead = components["schemas"]["LocationRead"];
  */
 export function VisitDetailPage() {
 	const { entryId } = useParams<{ entryId: string }>();
-	const visitId = Number(entryId);
+	const visitId = parseRouteId(entryId);
 
 	const visitQuery = useQuery({
 		queryKey: ["visit", visitId],
 		queryFn: () => request<VisitRead>("GET", `/api/v1/visits/${visitId}`),
-		enabled: Number.isInteger(visitId),
+		enabled: visitId !== null,
 	});
 	const locationsQuery = useQuery({
 		queryKey: ["locations"],
 		queryFn: () => request<LocationRead[]>("GET", "/api/v1/locations"),
 	});
 
-	if (!Number.isInteger(visitId)) {
+	if (visitId === null) {
 		return <p role="alert">Invalid visit id.</p>;
 	}
 	if (visitQuery.isPending) {

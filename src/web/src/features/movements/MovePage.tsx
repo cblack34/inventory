@@ -55,10 +55,10 @@ export function MovePage() {
 	if (stockQuery.isPending || locationsQuery.isPending) {
 		return <p>Loading stock…</p>;
 	}
-	if (stockQuery.isError) {
+	if (stockQuery.isError && stockQuery.data === undefined) {
 		return <p role="alert">{problemMessage(stockQuery.error)}</p>;
 	}
-	if (locationsQuery.isError) {
+	if (locationsQuery.isError && locationsQuery.data === undefined) {
 		return <p role="alert">{problemMessage(locationsQuery.error)}</p>;
 	}
 
