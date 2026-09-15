@@ -5,6 +5,7 @@ import type { components } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { problemMessage } from "@/lib/problemMessage";
 import { summarizeBatchStates } from "./batchStateCounts";
 import { TossForm } from "./TossForm";
 
@@ -27,10 +28,10 @@ export function StockSection() {
 		return <p>Loading stock…</p>;
 	}
 	if (stockQuery.isError) {
-		return <p role="alert">Could not load stock.</p>;
+		return <p role="alert">{problemMessage(stockQuery.error)}</p>;
 	}
 	if (locationsQuery.isError) {
-		return <p role="alert">Could not load locations.</p>;
+		return <p role="alert">{problemMessage(locationsQuery.error)}</p>;
 	}
 
 	const wasteLocationId = locationsQuery.data.find(
@@ -119,6 +120,7 @@ function SizeRow({
 				tossing ? (
 					<TossForm
 						sizeId={size.size_id}
+						label={`${size.recipe_name} ${size.size_name}`}
 						onHand={size.quantity}
 						kitchenLocationId={kitchenLocationId}
 						wasteLocationId={wasteLocationId}

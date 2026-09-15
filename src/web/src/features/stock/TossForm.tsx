@@ -27,6 +27,8 @@ function tossSchema(onHand: number) {
 
 type TossFormProps = {
 	sizeId: number;
+	/** Recipe and size, so every control in this row is named for screen readers. */
+	label: string;
 	onHand: number;
 	kitchenLocationId: number;
 	wasteLocationId: number;
@@ -40,6 +42,7 @@ type TossFormProps = {
  */
 export function TossForm({
 	sizeId,
+	label,
 	onHand,
 	kitchenLocationId,
 	wasteLocationId,
@@ -83,6 +86,7 @@ export function TossForm({
 
 	return (
 		<form
+			aria-label={`Toss ${label}`}
 			onSubmit={onSubmit}
 			className="mt-2 flex flex-col gap-2 border-t pt-2"
 		>
@@ -90,13 +94,18 @@ export function TossForm({
 				<Input
 					type="number"
 					inputMode="numeric"
-					aria-label="Quantity to toss"
+					aria-label={`Quantity to toss of ${label}`}
 					aria-invalid={errors.quantity ? true : undefined}
 					aria-describedby={errors.quantity ? errorId : undefined}
 					className="w-16"
 					{...register("quantity", { valueAsNumber: true })}
 				/>
-				<Button type="submit" size="sm" disabled={toss.isPending}>
+				<Button
+					type="submit"
+					size="sm"
+					aria-label={`Confirm toss of ${label}`}
+					disabled={toss.isPending}
+				>
 					{toss.isPending ? "Tossing…" : "Confirm toss"}
 				</Button>
 				<Button

@@ -32,10 +32,10 @@ export function HistorySection() {
 		return <p>Loading history…</p>;
 	}
 	if (entriesQuery.isError) {
-		return <p role="alert">Could not load history.</p>;
+		return <p role="alert">{problemMessage(entriesQuery.error)}</p>;
 	}
 	if (locationsQuery.isError) {
-		return <p role="alert">Could not load locations.</p>;
+		return <p role="alert">{problemMessage(locationsQuery.error)}</p>;
 	}
 
 	const locationNames = new Map(
