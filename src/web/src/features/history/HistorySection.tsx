@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router";
 import { request } from "@/api/client";
 import type { components } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
@@ -103,7 +104,16 @@ function EntryCard({
 		<Card>
 			<CardHeader>
 				<CardTitle className="flex items-center justify-between gap-2">
-					<span className="capitalize">{entry.kind}</span>
+					{entry.kind === "visit" ? (
+						<Link
+							to={`/visits/${entry.entry_id}`}
+							className="capitalize underline-offset-4 hover:underline"
+						>
+							{entry.kind}
+						</Link>
+					) : (
+						<span className="capitalize">{entry.kind}</span>
+					)}
 					{voided ? <Badge variant="secondary">Voided</Badge> : null}
 				</CardTitle>
 			</CardHeader>
