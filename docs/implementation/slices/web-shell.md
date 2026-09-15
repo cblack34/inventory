@@ -90,7 +90,7 @@ GitHub issues are the WIP tracker and source of task-level detail.
 
 - **Topology:** per-slice spine with leaf PRs.
 - **Branch or spine:** `slice/web-shell`; leaves `web-shell/foundation`, `web-shell/e2e`, `web-shell/home`.
-- **Final PR:** to be opened when the slice's verification passes on the spine.
+- **Final PR:** [#38](https://github.com/cblack34/inventory/pull/38).
 - **Human merge gate:** Only the human may physically merge the final PR to `main`. Agents must stop when it is ready.
 
 ## Amendments
@@ -101,9 +101,9 @@ None.
 
 Complete once when the final PR is ready for human merge. Do not use this section for WIP status.
 
-- **Outcome:** pending.
-- **Verification:** pending.
-- **Deviations:** pending.
-- **Unresolved gates or risks:** pending.
-- **Final PR:** pending.
-- **Merge state:** pending.
+- **Outcome:** Delivered 2026-09-15. `src/web/` is a mobile-first app: React Router 8, TanStack Query 5, Tailwind CSS 4 with shadcn/ui v4 components, react-hook-form with zod; a typed client over the generated OpenAPI types that parses Problem Details and sends the browser to `/login` on 401; a login screen; and the home screen with stock grouped by inventory location, per-batch expiring-soon and expired badges, toss on kitchen rows, and history newest first with visit revenue and profit, a voided label, and undo on every non-voided bake, visit, or manual entry. `make e2e` builds the frontend, migrates a scratch SQLite file, starts the API through Playwright's web server, and runs the one smoke test; CI runs it after `make check`.
+- **Verification:** `make check` exit 0 and `make e2e` exit 0 on code head 40dc748 (ruff, pyright strict, 458 pytest, Biome, tsc, vitest 8, vite build, OpenAPI types with no drift; Playwright log in and load home at a 375 px viewport). A seeded 375×812 screenshot showed no horizontal scrolling, both expiry badges on one row broken out by batch, a visit with revenue and profit, and undo on each non-voided entry; the same Kitchen-to-Waste movement and reversal the UI issues round-tripped stock through the API. Leaf evidence on [#34](https://github.com/cblack34/inventory/pull/34), [#35](https://github.com/cblack34/inventory/pull/35), [#36](https://github.com/cblack34/inventory/pull/36): green CI and a HEAD-matched Copilot pass with zero new comments at each final head. Issues [#31](https://github.com/cblack34/inventory/issues/31), [#32](https://github.com/cblack34/inventory/issues/32), [#33](https://github.com/cblack34/inventory/issues/33) carry the detailed trail. The only commit after the code head is this record.
+- **Deviations:** shadcn's current CLI (v4) bundles a font package, `lucide-react`, `cn`, and `shadcn` itself as runtime dependencies; the owner approved that footprint on 2026-09-15 instead of pinning the generator to v3 or hand-rolling components, and `docs/tech-stack.md` records it along with OFL-1.1 as fine for font files. React Router's current stable is major 8, not 7. The home leaf's third Copilot pass left five suppressed accessibility and refetch nits; they were applied in one commit on the spine so the leaf's clean review stayed valid. The foundation and home leaves each used the full three review cycles on genuine findings.
+- **Unresolved gates or risks:** Hosting target remains open. `make e2e` binds port 8000 and fails if a local dev server holds it. Backlog [#37](https://github.com/cblack34/inventory/issues/37) (SQLite-safe bounds on derived money aggregates and `shelf_life_days`, from the #30 review) and the deferred 404-versus-405 note in the api slice record await the next slice that touches the API.
+- **Final PR:** [#38](https://github.com/cblack34/inventory/pull/38).
+- **Merge state:** Ready for the human to merge; agents do not merge to `main`.
