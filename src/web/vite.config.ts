@@ -3,6 +3,7 @@ import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -19,5 +20,7 @@ export default defineConfig({
 	},
 	test: {
 		environment: "node",
+		// Playwright, not vitest, owns everything under e2e/.
+		exclude: [...configDefaults.exclude, "e2e/**"],
 	},
 });

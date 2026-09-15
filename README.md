@@ -15,6 +15,8 @@ Agents and contributors: start at [AGENTS.md](AGENTS.md), then [docs/build-brief
 
 `make check` runs every lint, type, test, and build stage for both halves. It is the only place those commands are defined and CI runs it on every pull request.
 
+`make e2e` builds the frontend, migrates a scratch SQLite file, starts the API on port 8000, and runs the one Playwright smoke test (log in, home renders). CI runs it after `make check`. It fails if port 8000 is already in use by another process, such as a local dev server started per the section below.
+
 ## Local development
 
 In one terminal, migrate and run the API (it stays in the foreground):
