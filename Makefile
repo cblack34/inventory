@@ -7,7 +7,7 @@ install:
 # node_modules/.package-lock.json on every install, so it is the stamp.
 install-web: src/web/node_modules/.package-lock.json
 
-src/web/node_modules/.package-lock.json: src/web/package-lock.json
+src/web/node_modules/.package-lock.json: src/web/package-lock.json src/web/package.json
 	npm ci --prefix src/web
 
 check: check-python check-web check-types
