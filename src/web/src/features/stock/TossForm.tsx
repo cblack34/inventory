@@ -112,6 +112,7 @@ export function TossForm({
 					type="button"
 					size="sm"
 					variant="ghost"
+					aria-label={`Cancel toss of ${label}`}
 					onClick={onCancel}
 					disabled={toss.isPending}
 				>

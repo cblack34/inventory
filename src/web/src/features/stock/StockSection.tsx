@@ -64,7 +64,7 @@ function LocationCard({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>{location.name}</CardTitle>
+				<CardTitle className="min-w-0 break-words">{location.name}</CardTitle>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-3">
 				{location.sizes.length === 0 ? (
@@ -102,7 +102,7 @@ function SizeRow({
 	return (
 		<div className="flex flex-col gap-1 border-b pb-3 last:border-b-0 last:pb-0">
 			<div className="flex items-center justify-between gap-2">
-				<div>
+				<div className="min-w-0 break-words">
 					<p className="font-medium">{size.recipe_name}</p>
 					<p className="text-sm text-muted-foreground">{size.size_name}</p>
 				</div>

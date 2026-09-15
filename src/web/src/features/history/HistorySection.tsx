@@ -106,7 +106,7 @@ function EntryCard({
 				</CardTitle>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-1">
-				<p className="text-sm text-muted-foreground">
+				<p className="min-w-0 break-words text-sm text-muted-foreground">
 					{localDate(entry.created_at)}
 					{locationName ? ` · ${locationName}` : ""}
 				</p>
