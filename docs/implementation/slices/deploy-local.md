@@ -85,7 +85,7 @@ GitHub issues are the WIP tracker and source of task-level detail.
 
 - **Topology:** per-slice spine with one leaf PR.
 - **Branch or spine:** `slice/deploy-local`; leaf `deploy-local/compose`.
-- **Final PR:** to be opened when verification passes on the spine.
+- **Final PR:** [#41](https://github.com/cblack34/inventory/pull/41).
 - **Human merge gate:** Only the human may physically merge the final PR to `main`. Agents must stop when it is ready.
 
 ## Amendments
@@ -96,9 +96,9 @@ None.
 
 Complete once when the final PR is ready for human merge. Do not use this section for WIP status.
 
-- **Outcome:** pending.
-- **Verification:** pending.
-- **Deviations:** pending.
-- **Unresolved gates or risks:** pending.
-- **Final PR:** pending.
-- **Merge state:** pending.
+- **Outcome:** Delivered 2026-09-15. `Dockerfile` (Node 24 build stage; `python:3.14-slim` runtime with `uv` 0.12.15 copied from its official image, the `sqlite3` CLI, `uv sync --locked --no-dev` under BuildKit cache mounts, non-root UID 1000, `/data` pre-owned for the named volume), `docker/entrypoint.sh` (`alembic upgrade head` then `exec python -m inventory`), `compose.yaml` (one service on port 8000, `env_file: .env`, `DB=/data/inventory.db` on volume `data`, `./backups:/backups`, stdlib healthcheck), `.env.example`, `.dockerignore`, `/backups/` gitignored, and `docs/deployment.md`.
+- **Verification:** `make check` exit 0 and `make e2e` exit 0 on code head cb8e0ba (unchanged by this slice). Real `docker compose up -d --build` on cb8e0ba: health 200 within 3 s, `/login` 200, `/` 303 to `/login`, `/api/v1/stock` 401 Problem then 200 after a 204 login, the documented backup command produced `backups/inventory.db` holding the five built-in locations, image 372 MB, `down -v` clean. Negative start without `SESSION_SECRET` exits 1 naming it (leaf verification on 7b8b0d8). Leaf evidence on [#40](https://github.com/cblack34/inventory/pull/40): green CI and a HEAD-matched "Approval recommended" Copilot pass. Issue [#39](https://github.com/cblack34/inventory/issues/39) carries the trail. The only commit after the code head is this record.
+- **Deviations:** Pulled ahead of the entry screens at the owner's request. The first container start failed because a fresh named volume inherits the image's root-owned mount point; fixed by creating `/data` owned by `app` in the image. uvicorn 0.52.4 honors `FORWARDED_ALLOW_IPS` from the environment inside `uvicorn.run()`, so the tech-stack uvicorn row was corrected from CLI flags to that variable. Two suppressed docs nits from the leaf's final pass (`.env` mode 600; the tech-stack row) were applied on the spine.
+- **Unresolved gates or risks:** Hosting target open; Caddy, TLS, the cron entry, and object-storage upload wait on it. The owner's human backup verification against a running instance is still to be done. Backlog [#37](https://github.com/cblack34/inventory/issues/37) is untouched.
+- **Final PR:** [#41](https://github.com/cblack34/inventory/pull/41).
+- **Merge state:** Ready for the human to merge; agents do not merge to `main`.
