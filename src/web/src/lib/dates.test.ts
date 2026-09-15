@@ -25,4 +25,12 @@ describe("addDays", () => {
 	it("returns null instead of throwing when the shift lands outside JS's representable Date range", () => {
 		expect(addDays("2026-01-01", 100_000_000)).toBeNull();
 	});
+
+	it("returns null once the result is past year 9999", () => {
+		expect(addDays("9999-12-31", 1)).toBeNull();
+	});
+
+	it("does not map years 0-99 to the 1900s", () => {
+		expect(addDays("0001-01-01", 1)).toBe("0001-01-02");
+	});
 });
