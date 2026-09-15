@@ -1,5 +1,12 @@
-// ponytail: placeholder only; the web-shell/home leaf fills this in with
-// stock-by-location, toss, and history.
+import { HistorySection } from "@/features/history/HistorySection";
+import { StockSection } from "@/features/stock/StockSection";
+
 export function HomePage() {
-	return <h1>Home</h1>;
+	return (
+		<div className="flex flex-col gap-6">
+			<h1 className="text-xl font-semibold">Home</h1>
+			<StockSection />
+			<HistorySection />
+		</div>
+	);
 }
