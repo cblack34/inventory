@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { request } from "@/api/client";
 import type { components } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
@@ -71,26 +72,23 @@ function EntryCard({
 	locationName: string | undefined;
 }) {
 	const queryClient = useQueryClient();
+	// The POST already committed the reversal, so hide Undo as soon as it
+	// succeeds rather than waiting on a refetch — a reversal is rejected
+	// server-side as already voided, but a stale card that still shows an
+	// enabled Undo invites a confusing second click. Invalidations are fired
+	// without `throwOnError`: a refetch failure surfaces as this section's
+	// own query error state, not as a reason to leave Undo retryable.
+	const [locallyVoided, setLocallyVoided] = useState(false);
 	const undo = useMutation({
 		mutationFn: () => {
 			const body: ReversalCreate = { entry_id: entry.entry_id };
 			return request<ReversalRead>("POST", "/api/v1/reversals", body);
 		},
-		// Awaited so the Undo button stays disabled until the entry re-renders
-		// as voided; otherwise a second click could fire before the refetch.
-		// `throwOnError` turns a failed refetch into a mutation error, so a
-		// stale non-voided card cannot silently reappear as undoable.
-		onSuccess: () =>
-			Promise.all([
-				queryClient.invalidateQueries(
-					{ queryKey: ["stock"] },
-					{ throwOnError: true },
-				),
-				queryClient.invalidateQueries(
-					{ queryKey: ["entries"] },
-					{ throwOnError: true },
-				),
-			]),
+		onSuccess: () => {
+			setLocallyVoided(true);
+			void queryClient.invalidateQueries({ queryKey: ["stock"] });
+			void queryClient.invalidateQueries({ queryKey: ["entries"] });
+		},
 	});
 
 	const handleUndo = () => {
@@ -118,7 +116,7 @@ function EntryCard({
 				{entry.profit_cents !== null ? (
 					<p className="text-sm">Profit {formatCents(entry.profit_cents)}</p>
 				) : null}
-				{canUndo(entry) ? (
+				{canUndo(entry) && !locallyVoided ? (
 					<Button
 						type="button"
 						size="sm"

@@ -65,23 +65,16 @@ export function TossForm({
 			};
 			return request<EntryRead>("POST", "/api/v1/movements", body);
 		},
-		// Awaited so the form (and its disabled submit) stays up until the
-		// stock row shows the new on-hand; closing early would let a second
-		// toss be entered against a stale count.
-		// `throwOnError` keeps a failed refetch from closing the form over a
-		// stale on-hand count; the error shows and the form stays open.
-		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries(
-					{ queryKey: ["stock"] },
-					{ throwOnError: true },
-				),
-				queryClient.invalidateQueries(
-					{ queryKey: ["entries"] },
-					{ throwOnError: true },
-				),
-			]);
+		// The POST already committed the movement, so close the form as soon
+		// as it succeeds — a retryable form over a committed toss is how a
+		// second Kitchen→Waste movement gets appended for one user action.
+		// Invalidations are fired without `throwOnError`: a refetch failure
+		// surfaces as StockSection's/HistorySection's own query error state,
+		// not as a reason to keep this form open.
+		onSuccess: () => {
 			onCancel();
+			void queryClient.invalidateQueries({ queryKey: ["stock"] });
+			void queryClient.invalidateQueries({ queryKey: ["entries"] });
 		},
 	});
 
