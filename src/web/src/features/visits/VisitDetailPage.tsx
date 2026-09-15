@@ -31,18 +31,17 @@ export function VisitDetailPage() {
 	if (!Number.isInteger(visitId)) {
 		return <p role="alert">Invalid visit id.</p>;
 	}
-	if (visitQuery.isPending || locationsQuery.isPending) {
+	if (visitQuery.isPending) {
 		return <p>Loading visit…</p>;
 	}
 	if (visitQuery.isError) {
 		return <p role="alert">{problemMessage(visitQuery.error)}</p>;
 	}
-	if (locationsQuery.isError) {
-		return <p role="alert">{problemMessage(locationsQuery.error)}</p>;
-	}
 
+	// The location name is decoration; the visit renders as soon as its own
+	// query succeeds, whatever the locations query is doing.
 	const visit = visitQuery.data;
-	const locationName = locationsQuery.data.find(
+	const locationName = locationsQuery.data?.find(
 		(location) => location.id === visit.location_id,
 	)?.name;
 	const differenceLabel = visit.kind === "stand" ? "Shrink" : "Difference";
