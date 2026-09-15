@@ -45,16 +45,24 @@ export function LoginPage() {
 								id="password"
 								type="password"
 								autoComplete="current-password"
+								aria-invalid={errors.password ? true : undefined}
+								aria-describedby={
+									errors.password ? "password-error" : undefined
+								}
 								{...register("password")}
 							/>
 							{errors.password ? (
-								<p className="text-sm text-destructive">
+								<p
+									id="password-error"
+									role="alert"
+									className="text-sm text-destructive"
+								>
 									{errors.password.message}
 								</p>
 							) : null}
 						</div>
 						{login.isError ? (
-							<p className="text-sm text-destructive">
+							<p role="alert" className="text-sm text-destructive">
 								{loginErrorMessage(login.error)}
 							</p>
 						) : null}

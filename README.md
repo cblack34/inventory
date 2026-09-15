@@ -17,4 +17,11 @@ Agents and contributors: start at [AGENTS.md](AGENTS.md), then [docs/build-brief
 
 ## Local development
 
-Run the API with `DB=/tmp/inv-dev.db SHARED_PASSWORD=pw SESSION_SECRET=00000000000000000000000000000000 TIMEZONE=UTC INSECURE_COOKIES=true uv run python -m inventory` (after `uv run alembic upgrade head` against the same `DB`), then run the frontend against it with `npm run dev --prefix src/web`.
+Migrate and run the API, then run the frontend against it:
+
+```bash
+export DB=/tmp/inv-dev.db SHARED_PASSWORD=pw SESSION_SECRET=00000000000000000000000000000000 TIMEZONE=UTC INSECURE_COOKIES=true
+uv run alembic upgrade head
+uv run python -m inventory
+npm run dev --prefix src/web
+```
