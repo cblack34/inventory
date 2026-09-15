@@ -83,16 +83,19 @@ the cron entry and the upload credentials belong to the host, not this
 repository (out of scope until the hosting gate closes -- see
 `docs/tech-stack.md`'s Shipping table).
 
-Before the first run, create the bind-mounted directory with permissions
-the container's non-root user can write to, since a fresh Linux Docker
-host creates a missing bind-mount source directory owned by root:
+Before the first run, create the bind-mounted directory owned by the
+container's fixed non-root user (UID and GID 1000, set in the `Dockerfile`)
+and readable by nobody else, since a fresh Linux Docker host would
+otherwise create a missing bind-mount source directory owned by root:
 
 ```bash
-mkdir -p backups && chmod 777 backups
+mkdir -p backups && sudo chown 1000:1000 backups && chmod 700 backups
 ```
 
-(`backups/inventory.db` will hold real business data once you back up
-against a real deployment; keep the directory out of git, same as `.env`.)
+`backups/inventory.db` holds real business data once a backup has run, so
+the directory must not be world-readable; it is gitignored, same as
+`.env`. (On Docker Desktop for macOS the bind mount is already writable by
+the container user and the `chown` is unnecessary.)
 
 ## Rotate secrets
 
