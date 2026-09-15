@@ -104,7 +104,10 @@ That produces `./backups/inventory.db` on the host. A nightly host cron
 entry runs the same command and then uploads that file to object storage;
 the cron entry and the upload credentials belong to the host, not this
 repository (out of scope until the hosting gate closes -- see
-`docs/tech-stack.md`'s Shipping table).
+`docs/tech-stack.md`'s Shipping table). Run that cron job as root: it
+already needs Docker access for `docker compose exec`, and root can read
+the `backups` directory below even though it is mode 700 and owned by the
+container's UID 1000.
 
 ## Rotate secrets
 
