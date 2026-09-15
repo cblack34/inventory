@@ -25,7 +25,7 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 | TanStack Query | adopted | Invalidation after posting a visit without hand-rolled state. |
 | React Router | adopted | Under ten routes. TanStack Router rejected as more setup than a handful of routes justify. |
 | openapi-typescript (types generated from the FastAPI OpenAPI document) | adopted | Pydantic is the single type source. Hand-written API types are forbidden. Regeneration is `make generate-types`, the output is committed, and `make check` fails on drift via a non-mutating diff against a fresh generation. |
-| Tailwind CSS with shadcn/ui components | adopted | Copy-in components, mobile-first, no runtime UI library. Mantine was the alternative. |
+| Tailwind CSS with shadcn/ui components | adopted | Copy-in components, mobile-first, no runtime UI library. Mantine was the alternative. The current shadcn CLI (v4, preset-based `init`) pulls in `shadcn` and `cn` as runtime dependencies plus `radix-ui`, `class-variance-authority`, `lucide-react`, `tw-animate-css`, and a font package (`@fontsource-variable/geist` for the default `nova` preset) rather than the classic `clsx`/`tailwind-merge` pair; owner approved this full v4 footprint 2026-09-15. |
 | react-hook-form with zod | adopted | Visit and bake forms are lists of number inputs; recipe, ingredient, location, and login forms mix text, date, and password fields. zod validates every form boundary. |
 | Biome (lint and format) | adopted | One tool. ESLint and Prettier rejected for a solo project. |
 | vitest | adopted | For the little pure frontend logic that exists. No component-test scaffolding. |
@@ -44,7 +44,7 @@ Adopted by the user. Substituting a listed choice requires the user's approval. 
 
 ## Dependency policy
 
-Runtime dependencies are the rows above, plus the packages an adopted row's own registry or official documentation requires in order to work — for example `radix-ui`, `class-variance-authority`, `clsx`, and `tailwind-merge` for shadcn/ui components, and `@hookform/resolvers` for react-hook-form's zod resolver. A row pre-approves its required companions; the lead records them in the lockfile without asking. Adding anything else at runtime requires the user's approval. Dev-only tooling that directly supports an adopted row (a Biome plugin, a pytest plugin) is at the lead's discretion. Prefer a well-maintained library over hand-rolled code for anything security-sensitive or fiddly; prefer the standard library and existing dependencies over a new package for a few lines of plain logic.
+Runtime dependencies are the rows above, plus the packages an adopted row's own registry or official documentation requires in order to work — for example `radix-ui`, `class-variance-authority`, `cn`, `lucide-react`, `tw-animate-css`, and a font package for shadcn/ui components (see the Frontend table), and `@hookform/resolvers` for react-hook-form's zod resolver. A row pre-approves its required companions; the lead records them in the lockfile without asking. Adding anything else at runtime requires the user's approval. Dev-only tooling that directly supports an adopted row (a Biome plugin, a pytest plugin) is at the lead's discretion. Prefer a well-maintained library over hand-rolled code for anything security-sensitive or fiddly; prefer the standard library and existing dependencies over a new package for a few lines of plain logic.
 
 ## License policy
 
