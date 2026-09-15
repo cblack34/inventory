@@ -102,7 +102,9 @@ function EntryCard({
 			<CardHeader>
 				<CardTitle className="flex items-center justify-between gap-2">
 					<span className="capitalize">{entry.kind}</span>
-					{entry.voided ? <Badge variant="secondary">Voided</Badge> : null}
+					{entry.voided || locallyVoided ? (
+						<Badge variant="secondary">Voided</Badge>
+					) : null}
 				</CardTitle>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-1">
