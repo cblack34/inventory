@@ -25,11 +25,11 @@ export function NewVisitPage() {
 	if (locationsQuery.isPending) {
 		return <p>Loading locations…</p>;
 	}
-	if (locationsQuery.isError) {
+	if (locationsQuery.isError && locationsQuery.data === undefined) {
 		return <p role="alert">{problemMessage(locationsQuery.error)}</p>;
 	}
 
-	const options = locationsQuery.data.filter(
+	const options = (locationsQuery.data ?? []).filter(
 		(location) =>
 			location.active &&
 			(location.kind === "stand" || location.kind === "market"),

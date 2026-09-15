@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { z } from "zod";
@@ -43,10 +43,24 @@ export function StandVisitForm({
 		queryFn: () => request<StockRead[]>("GET", "/api/v1/stock"),
 	});
 
-	if (stockQuery.isPending) {
+	// ponytail: `["stock"]` is often already cached by Home, so `isPending`
+	// goes false immediately while this screen's own mount-time refetch is
+	// still in flight. Wait for that refetch to settle once before mounting
+	// the inner form below, so the on-hand snapshot it freezes on mount
+	// reflects this page's own fetch rather than a stale cache from another
+	// screen. Once settled, a later background refetch never unsettles this —
+	// the inner form stays mounted and keeps its already-frozen snapshot.
+	const [hasSettled, setHasSettled] = useState(false);
+	useEffect(() => {
+		if (!stockQuery.isFetching) {
+			setHasSettled(true);
+		}
+	}, [stockQuery.isFetching]);
+
+	if (stockQuery.isPending || !hasSettled) {
 		return <p>Loading stock…</p>;
 	}
-	if (stockQuery.isError) {
+	if (stockQuery.isError && stockQuery.data === undefined) {
 		return <p role="alert">{problemMessage(stockQuery.error)}</p>;
 	}
 

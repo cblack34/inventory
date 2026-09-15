@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { z } from "zod";
@@ -52,13 +52,25 @@ export function MarketVisitForm({
 		queryFn: () => request<RecipeRead[]>("GET", "/api/v1/recipes"),
 	});
 
-	if (stockQuery.isPending || recipesQuery.isPending) {
+	// ponytail: same stale-cache race as StandVisitForm — `["stock"]` (and
+	// `["recipes"]`) can already be cached when this screen mounts, so wait
+	// for this screen's own mount-time refetch of both to settle before
+	// mounting the inner form and freezing its row snapshot below. Once
+	// settled, later background refetches never unsettle this.
+	const [hasSettled, setHasSettled] = useState(false);
+	useEffect(() => {
+		if (!stockQuery.isFetching && !recipesQuery.isFetching) {
+			setHasSettled(true);
+		}
+	}, [stockQuery.isFetching, recipesQuery.isFetching]);
+
+	if (stockQuery.isPending || recipesQuery.isPending || !hasSettled) {
 		return <p>Loading…</p>;
 	}
-	if (stockQuery.isError) {
+	if (stockQuery.isError && stockQuery.data === undefined) {
 		return <p role="alert">{problemMessage(stockQuery.error)}</p>;
 	}
-	if (recipesQuery.isError) {
+	if (recipesQuery.isError && recipesQuery.data === undefined) {
 		return <p role="alert">{problemMessage(recipesQuery.error)}</p>;
 	}
 
@@ -72,14 +84,35 @@ export function MarketVisitForm({
 		}
 	}
 
-	const rowsMeta: MarketRowMeta[] = (kitchenStock?.sizes ?? [])
-		.filter((size) => size.quantity > 0)
-		.map((size) => ({
-			sizeId: size.size_id,
-			label: `${size.recipe_name} — ${size.size_name}`,
-			onHand: size.quantity,
-			priceCents: priceBySize.get(size.size_id) ?? 0,
-		}));
+	// A zero price has business meaning (it makes `returned` prefill to 0 and
+	// lets a priced size be settled as sampled), so an unknown price is never
+	// defaulted to zero. If the recipes cache predates a newly created size,
+	// some stocked size will have no price yet; render a retry state instead
+	// of building the form with a guessed price.
+	const stockedSizes = (kitchenStock?.sizes ?? []).filter(
+		(size) => size.quantity > 0,
+	);
+	const rowsOrGap = stockedSizes.map((size) => {
+		const priceCents = priceBySize.get(size.size_id);
+		return priceCents === undefined
+			? null
+			: {
+					sizeId: size.size_id,
+					label: `${size.recipe_name} — ${size.size_name}`,
+					onHand: size.quantity,
+					priceCents,
+				};
+	});
+	if (rowsOrGap.some((row) => row === null)) {
+		return (
+			<p role="alert">
+				Stock and recipes are out of sync. Try again in a moment.
+			</p>
+		);
+	}
+	const rowsMeta = rowsOrGap.filter(
+		(row): row is MarketRowMeta => row !== null,
+	);
 
 	return (
 		<MarketVisitFormInner
