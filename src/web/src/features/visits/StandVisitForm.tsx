@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { parseDollarsToCents } from "@/lib/dollars";
 import { problemMessage } from "@/lib/problemMessage";
 import { CountField } from "./CountField";
-import { parseDollarsToCents } from "./dollars";
 import { buildStandRows } from "./rows";
 
 type StockRead = components["schemas"]["StockRead"];
@@ -104,6 +104,9 @@ function standVisitSchema(sectionA: RowMeta[], sectionB: RowMeta[]) {
 			.min(1, "Cash collected is required")
 			.refine((value) => parseDollarsToCents(value) !== null, {
 				message: "Enter a dollar amount like 12.34",
+			})
+			.refine((value) => (parseDollarsToCents(value) ?? -1) >= 0, {
+				message: "Must be zero or more",
 			}),
 		rows: z
 			.array(
