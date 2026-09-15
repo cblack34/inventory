@@ -17,11 +17,16 @@ Agents and contributors: start at [AGENTS.md](AGENTS.md), then [docs/build-brief
 
 ## Local development
 
-Migrate and run the API, then run the frontend against it:
+In one terminal, migrate and run the API (it stays in the foreground):
 
 ```bash
 export DB=/tmp/inv-dev.db SHARED_PASSWORD=pw SESSION_SECRET=00000000000000000000000000000000 TIMEZONE=UTC INSECURE_COOKIES=true
 uv run alembic upgrade head
 uv run python -m inventory
+```
+
+In a second terminal, run the frontend, which proxies `/api` to it:
+
+```bash
 npm run dev --prefix src/web
 ```

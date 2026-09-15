@@ -40,6 +40,50 @@ describe("request", () => {
 		});
 	});
 
+	it("redirects to /login on a 401 from a non-session path", async () => {
+		const assign = vi.fn();
+		vi.stubGlobal("window", { location: { assign } });
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				jsonResponse(401, {
+					type: "urn:inventory:problem:unauthorized",
+					title: "Unauthorized",
+					status: 401,
+					detail: "a valid session is required",
+					instance: null,
+				}),
+			),
+		);
+
+		await expect(request("GET", "/api/v1/stock")).rejects.toBeInstanceOf(
+			ProblemError,
+		);
+		expect(assign).toHaveBeenCalledWith("/login");
+	});
+
+	it("does not redirect on a 401 from the session path", async () => {
+		const assign = vi.fn();
+		vi.stubGlobal("window", { location: { assign } });
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				jsonResponse(401, {
+					type: "urn:inventory:problem:invalid-credentials",
+					title: "Invalid Credentials",
+					status: 401,
+					detail: "incorrect password",
+					instance: null,
+				}),
+			),
+		);
+
+		await expect(
+			request("POST", "/api/v1/session", { password: "nope" }),
+		).rejects.toBeInstanceOf(ProblemError);
+		expect(assign).not.toHaveBeenCalled();
+	});
+
 	it("resolves a 204 response to undefined", async () => {
 		vi.stubGlobal(
 			"fetch",
