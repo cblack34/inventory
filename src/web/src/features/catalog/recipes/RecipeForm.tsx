@@ -103,9 +103,9 @@ export function RecipeForm({
 
 			<section className="flex flex-col gap-3">
 				<h2 className="text-lg font-semibold">Ingredient lines</h2>
-				{errors.lines?.root?.message ? (
+				{arrayMessage(errors.lines) ? (
 					<p role="alert" className="text-sm text-destructive">
-						{errors.lines.root.message}
+						{arrayMessage(errors.lines)}
 					</p>
 				) : null}
 				{linesArray.fields.length === 0 ? (
@@ -218,9 +218,9 @@ export function RecipeForm({
 
 			<section className="flex flex-col gap-3">
 				<h2 className="text-lg font-semibold">Sizes</h2>
-				{errors.sizes?.root?.message ? (
+				{arrayMessage(errors.sizes) ? (
 					<p role="alert" className="text-sm text-destructive">
-						{errors.sizes.root.message}
+						{arrayMessage(errors.sizes)}
 					</p>
 				) : null}
 				{sizesArray.fields.map((field, index) => {
@@ -361,4 +361,15 @@ export function RecipeForm({
 			</Button>
 		</form>
 	);
+}
+
+/**
+ * An array-level validation message, wherever react-hook-form put it: a zod
+ * refinement on the array itself lands at `errors.<field>.message`, while
+ * field-array `rules` land at `errors.<field>.root.message`.
+ */
+function arrayMessage(
+	error: { message?: string; root?: { message?: string } } | undefined,
+): string | undefined {
+	return error?.root?.message ?? error?.message;
 }
