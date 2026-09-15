@@ -50,7 +50,7 @@ Runtime dependencies are the rows above, plus the packages an adopted row's own 
 
 The application is deployed as a service and its source is not distributed, but the owner does not want a dependency that could obligate publishing this code.
 
-- **Fine without asking:** MIT, BSD (2- and 3-clause), Apache-2.0, ISC, PSF, Unlicense, public domain, LGPL, MPL-2.0.
+- **Fine without asking:** MIT, BSD (2- and 3-clause), Apache-2.0, ISC, PSF, Unlicense, public domain, LGPL, MPL-2.0, and OFL-1.1 for font files (it governs the font, not the code that loads it).
 - **Ask first:** GPL (any version).
 - **Never:** AGPL, SSPL, and any license that conditions use on publishing the calling code.
 
