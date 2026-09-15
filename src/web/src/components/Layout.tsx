@@ -17,6 +17,9 @@ export function Layout({ children }: { children: ReactNode }) {
 					<Link to="/move" className="ml-4 text-sm font-medium">
 						Move
 					</Link>
+					<Link to="/visits/new" className="ml-4 text-sm font-medium">
+						Visit
+					</Link>
 				</nav>
 			</header>
 			<main className="flex-1 px-4 py-4">{children}</main>
