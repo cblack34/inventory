@@ -95,7 +95,13 @@ export function TossForm({
 				<Button type="submit" size="sm" disabled={toss.isPending}>
 					{toss.isPending ? "Tossing…" : "Confirm toss"}
 				</Button>
-				<Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+				<Button
+					type="button"
+					size="sm"
+					variant="ghost"
+					onClick={onCancel}
+					disabled={toss.isPending}
+				>
 					Cancel
 				</Button>
 			</div>
