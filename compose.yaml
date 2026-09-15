@@ -15,7 +15,11 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      # Loopback only: the TLS-terminating proxy on the same host is the one
+      # ingress in production, and a laptop reaches it at localhost:8000.
+      # Publishing on every interface would leave a plaintext path around
+      # the proxy through which the shared password could be sent.
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
     environment:
@@ -25,7 +29,10 @@ services:
     volumes:
       - data:/data
       - ./backups:/backups
-    restart: unless-stopped
+    # Bounded so a failed migration or a bad .env leaves a stopped container
+    # to diagnose (`docker compose logs app`) instead of an endless restart
+    # loop; a crash while serving still gets a few automatic restarts.
+    restart: on-failure:3
     healthcheck:
       # stdlib only (no curl in the image): a non-2xx response or a
       # connection failure raises in `urllib.request.urlopen`, which exits

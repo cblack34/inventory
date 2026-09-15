@@ -69,7 +69,12 @@ This builds one image (a Node stage builds the frontend; the runtime stage
 is `python:3.14-slim`) and starts one container. The entrypoint runs
 `alembic upgrade head` and only then starts the server; a failed migration
 exits non-zero and the server never starts. The app serves on
-**port 8000**. The SQLite file lives at `/data/inventory.db` inside the
+**port 8000, bound to loopback only** (`127.0.0.1:8000`): on a laptop that
+is `http://localhost:8000`, and in production the TLS-terminating proxy on
+the same host forwards to it, so no plaintext path exists around the proxy.
+If startup fails (a missing or short secret, a failed migration), the
+container stops after three attempts rather than looping; read the cause
+with `docker compose logs app`. The SQLite file lives at `/data/inventory.db` inside the
 container, on the named volume `data`, so it survives `docker compose
 down` (without `-v`) and image rebuilds.
 
