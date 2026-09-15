@@ -34,14 +34,17 @@ RUN groupadd --gid 1000 app \
 WORKDIR /app
 
 # Dependencies before the rest of the source, so an image rebuild after a
-# source-only change reuses this layer.
+# source-only change reuses this layer. The BuildKit cache mount keeps uv's
+# download cache out of the image layers (uv's own Docker guidance).
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-dev --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project
 
 COPY src/inventory/ src/inventory/
 COPY alembic.ini ./
 COPY alembic/ alembic/
-RUN uv sync --locked --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev
 
 # The built frontend, at the path inventory.api.static expects relative to
 # the installed package: src/web/dist next to src/inventory/.

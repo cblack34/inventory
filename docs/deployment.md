@@ -43,6 +43,23 @@ there is no fallback value in `compose.yaml` for either.
 
 ## Run
 
+First, on a Linux host, create the bind-mounted backup directory owned by
+the container's fixed non-root user (UID and GID 1000, set in the
+`Dockerfile`) and readable by nobody else. Do this before the first
+`docker compose up`: Docker creates a missing bind-mount source as root,
+and the non-root container user could not write backups into it.
+
+```bash
+sudo install -d -m 700 -o 1000 -g 1000 backups
+```
+
+`backups/inventory.db` holds real business data once a backup has run, so
+the directory must not be world-readable; it is gitignored, same as
+`.env`. On Docker Desktop for macOS a plain `mkdir -p backups` is enough,
+since the bind mount is already writable by the container user.
+
+Then:
+
 ```bash
 docker compose up -d --build
 ```
@@ -82,20 +99,6 @@ entry runs the same command and then uploads that file to object storage;
 the cron entry and the upload credentials belong to the host, not this
 repository (out of scope until the hosting gate closes -- see
 `docs/tech-stack.md`'s Shipping table).
-
-Before the first run, create the bind-mounted directory owned by the
-container's fixed non-root user (UID and GID 1000, set in the `Dockerfile`)
-and readable by nobody else, since a fresh Linux Docker host would
-otherwise create a missing bind-mount source directory owned by root:
-
-```bash
-mkdir -p backups && sudo chown 1000:1000 backups && chmod 700 backups
-```
-
-`backups/inventory.db` holds real business data once a backup has run, so
-the directory must not be world-readable; it is gitignored, same as
-`.env`. (On Docker Desktop for macOS the bind mount is already writable by
-the container user and the `chown` is unnecessary.)
 
 ## Rotate secrets
 
