@@ -10,9 +10,11 @@ describe("parseDollarsToCents", () => {
 	});
 
 	it("parses a value that would drift under float multiplication", () => {
-		// 0.1 * 1000 !== 100 in IEEE-754; string math must still land exactly.
+		// 0.1 + 0.2 !== 0.3 in IEEE-754; string math must still land exactly.
+		// 4.35 * 100 === 434.99999999999994 in IEEE-754, which naive rounding
+		// could truncate to the wrong cent.
 		expect(parseDollarsToCents("0.10")).toBe(10);
-		expect(parseDollarsToCents("16777216.01")).toBe(1677721601);
+		expect(parseDollarsToCents("4.35")).toBe(435);
 	});
 
 	it("parses a negative amount", () => {
@@ -24,6 +26,17 @@ describe("parseDollarsToCents", () => {
 		expect(parseDollarsToCents("1.234")).toBeNull();
 		expect(parseDollarsToCents("abc")).toBeNull();
 		expect(parseDollarsToCents("")).toBeNull();
+	});
+
+	it("rejects a value whose cents exceed Number's safe-integer range", () => {
+		// 20-digit cents value; Number.parseInt would silently round it rather
+		// than return the exact amount.
+		expect(parseDollarsToCents("100000000000000000.00")).toBeNull();
+	});
+
+	it("rejects a value above the API's per-field bound of 10**9 cents", () => {
+		expect(parseDollarsToCents("10000000.00")).toBe(1000000000);
+		expect(parseDollarsToCents("10000000.01")).toBeNull();
 	});
 });
 

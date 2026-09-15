@@ -33,10 +33,12 @@ type RecipeFormProps = {
 /**
  * Shared create/edit recipe form: name, shelf life, ingredient lines, and
  * sizes. Non-negotiable 3 stays server-side — this form never lets the user
- * choose a batch, only recipe-level facts. In edit mode, existing lines and
- * sizes have no remove control (`docs` "no delete actions of any kind");
- * only newly added, unsaved rows in create mode can be removed, since
- * nothing has been persisted yet.
+ * choose a batch, only recipe-level facts. Per `docs/data-model.md`, a
+ * recipe and its sizes are permanent once created, so sizes have no remove
+ * control in edit mode (only newly added, unsaved size rows in create mode
+ * can be removed). Ingredient lines carry no such permanence — the API
+ * treats `RecipePatch.lines` as a wholesale replacement — so lines can be
+ * removed in both modes.
  */
 export function RecipeForm({
 	mode,
@@ -184,18 +186,16 @@ export function RecipeForm({
 										</p>
 									) : null}
 								</div>
-								{mode === "create" ? (
-									<Button
-										type="button"
-										size="sm"
-										variant="ghost"
-										className="self-start"
-										aria-label={`Remove ingredient line ${index + 1}`}
-										onClick={() => linesArray.remove(index)}
-									>
-										Remove line
-									</Button>
-								) : null}
+								<Button
+									type="button"
+									size="sm"
+									variant="ghost"
+									className="self-start"
+									aria-label={`Remove ingredient line ${index + 1}`}
+									onClick={() => linesArray.remove(index)}
+								>
+									Remove line
+								</Button>
 							</CardContent>
 						</Card>
 					);

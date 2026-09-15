@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useParams } from "react-router";
 import { request } from "@/api/client";
 import type { components } from "@/api/types";
@@ -13,13 +14,18 @@ import {
 type IngredientRead = components["schemas"]["IngredientRead"];
 type RecipeRead = components["schemas"]["RecipeRead"];
 
-/** Parses the `:recipeId` route param, or `null` if it is missing or not a positive integer. */
+/**
+ * Parses the `:recipeId` route param, or `null` if it is missing or not a
+ * positive integer. Requires the entire string to be digits before parsing —
+ * `Number.parseInt` alone would accept "1.5" or "1abc" as `1`, matching the
+ * wrong recipe for a malformed URL.
+ */
 function parseRecipeId(param: string | undefined): number | null {
-	if (!param) {
+	if (!param || !/^\d+$/.test(param)) {
 		return null;
 	}
-	const id = Number.parseInt(param, 10);
-	return Number.isInteger(id) && id > 0 ? id : null;
+	const id = Number(param);
+	return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 /**
@@ -42,6 +48,9 @@ export function RecipeDetailPage() {
 		queryFn: () => request<IngredientRead[]>("GET", "/api/v1/ingredients"),
 	});
 	const queryClient = useQueryClient();
+	// Bumped only on a successful save, to force the form below to remount
+	// from the fresh server data (see the `key` comment on `RecipeForm`).
+	const [saveCount, setSaveCount] = useState(0);
 
 	const update = useMutation({
 		mutationFn: (values: RecipeFormValues) => {
@@ -54,8 +63,10 @@ export function RecipeDetailPage() {
 				toRecipePatch(values),
 			);
 		},
-		onSuccess: () => {
+		onSuccess: (data) => {
+			queryClient.setQueryData(["recipes", recipeId], data);
 			void queryClient.invalidateQueries({ queryKey: ["recipes"] });
+			setSaveCount((count) => count + 1);
 		},
 	});
 
@@ -81,14 +92,15 @@ export function RecipeDetailPage() {
 		<div className="flex flex-col gap-6">
 			<h1 className="text-xl font-semibold">{recipe.name}</h1>
 			<RecipeForm
-				// Keyed by id only (not by content): a background refetch —
-				// e.g. on window focus — must not remount the form and wipe
-				// in-progress edits. ponytail: a size added and saved in this
-				// same session won't show its estimated cost until the next
-				// visit to this page, since the form's field-array state
-				// keeps the in-progress `id: undefined` until then; simplest
-				// fix given the "no remount mid-edit" constraint above.
-				key={recipe.id}
+				// Keyed by id and save count, not by content: a background
+				// refetch — e.g. on window focus — must not remount the form
+				// and wipe in-progress edits, so `saveCount` only advances
+				// after a successful save. That remount re-derives
+				// `defaultValues` from the just-returned `RecipeRead`, so a
+				// size added in this same session picks up its
+				// server-assigned id and estimated cost immediately instead
+				// of waiting for the next visit to this page.
+				key={`${recipe.id}:${saveCount}`}
 				mode="edit"
 				defaultValues={recipeToFormValues(recipe)}
 				ingredients={ingredientsQuery.data}
