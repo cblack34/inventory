@@ -11,13 +11,19 @@ export function Layout({ children }: { children: ReactNode }) {
 					<Link to="/" className="text-sm font-medium">
 						Home
 					</Link>
-					<Link to="/ingredients" className="text-sm font-medium">
+					<Link to="/bake" className="ml-4 text-sm font-medium">
+						Bake
+					</Link>
+					<Link to="/move" className="ml-4 text-sm font-medium">
+						Move
+					</Link>
+					<Link to="/ingredients" className="ml-4 text-sm font-medium">
 						Ingredients
 					</Link>
-					<Link to="/recipes" className="text-sm font-medium">
+					<Link to="/recipes" className="ml-4 text-sm font-medium">
 						Recipes
 					</Link>
-					<Link to="/locations" className="text-sm font-medium">
+					<Link to="/locations" className="ml-4 text-sm font-medium">
 						Locations
 					</Link>
 				</nav>
