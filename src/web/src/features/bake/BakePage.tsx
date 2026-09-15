@@ -6,7 +6,7 @@ import type { components } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { formatCents } from "@/lib/money";
 import { problemMessage } from "@/lib/problemMessage";
 import { BakeForm } from "./BakeForm";
@@ -61,7 +61,7 @@ export function BakePage() {
 			<h1 className="text-xl font-semibold">Bake</h1>
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="recipe">Recipe</Label>
-				<Select
+				<NativeSelect
 					id="recipe"
 					value={recipe.id}
 					onChange={(event) => setRecipeId(Number(event.target.value))}
@@ -71,7 +71,7 @@ export function BakePage() {
 							{candidate.name}
 						</option>
 					))}
-				</Select>
+				</NativeSelect>
 			</div>
 			<BakeForm
 				key={recipe.id}

@@ -8,7 +8,7 @@ import type { components } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { problemMessage } from "@/lib/problemMessage";
 
 type StockRead = components["schemas"]["StockRead"];
@@ -183,7 +183,7 @@ function MoveForm({
 		<form onSubmit={onSubmit} className="flex flex-col gap-4">
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="source">From</Label>
-				<Select
+				<NativeSelect
 					id="source"
 					value={source.location_id}
 					onChange={(event) => handleSourceChange(Number(event.target.value))}
@@ -193,11 +193,11 @@ function MoveForm({
 							{s.name}
 						</option>
 					))}
-				</Select>
+				</NativeSelect>
 			</div>
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="size">Item</Label>
-				<Select
+				<NativeSelect
 					id="size"
 					value={size?.size_id}
 					onChange={(event) => setSizeId(Number(event.target.value))}
@@ -207,11 +207,11 @@ function MoveForm({
 							{s.recipe_name} {s.size_name} ({s.quantity} on hand)
 						</option>
 					))}
-				</Select>
+				</NativeSelect>
 			</div>
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="destination">To</Label>
-				<Select
+				<NativeSelect
 					id="destination"
 					value={destination?.id}
 					onChange={(event) => setDestinationId(Number(event.target.value))}
@@ -221,7 +221,7 @@ function MoveForm({
 							{d.name}
 						</option>
 					))}
-				</Select>
+				</NativeSelect>
 			</div>
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="quantity">Quantity</Label>
