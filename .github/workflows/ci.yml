@@ -56,6 +56,11 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('src/web/package-lock.json') }}
 
+      # Install web deps first so `npx playwright` resolves the lockfile-pinned
+      # package (the one the cache key hashes), not a freshly fetched latest.
+      - name: Install web dependencies
+        run: make install-web
+
       - name: Install Playwright browser
         run: npx --prefix src/web playwright install --with-deps chromium
 
