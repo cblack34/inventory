@@ -14,3 +14,19 @@ Agents and contributors: start at [AGENTS.md](AGENTS.md), then [docs/build-brief
 ## Checks
 
 `make check` runs every lint, type, test, and build stage for both halves. It is the only place those commands are defined and CI runs it on every pull request.
+
+## Local development
+
+In one terminal, migrate and run the API (it stays in the foreground):
+
+```bash
+export DB=/tmp/inv-dev.db SHARED_PASSWORD=pw SESSION_SECRET=00000000000000000000000000000000 TIMEZONE=UTC INSECURE_COOKIES=true
+uv run alembic upgrade head
+uv run python -m inventory
+```
+
+In a second terminal, run the frontend, which proxies `/api` to it:
+
+```bash
+npm run dev --prefix src/web
+```
