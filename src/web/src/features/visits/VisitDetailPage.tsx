@@ -57,9 +57,12 @@ export function VisitDetailPage() {
 					<CardTitle>Revenue</CardTitle>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-1">
-					<p>Cash collected: {formatCents(visit.revenue_cents)}</p>
+					<p>
+						{visit.kind === "stand" ? "Cash collected" : "Revenue"}:{" "}
+						{formatCents(visit.revenue_cents)}
+					</p>
 					{visit.kind === "market" ? (
-						<p>Fee: {formatCents(visit.fee_cents)}</p>
+						<p>Booth fee: {formatCents(visit.fee_cents)}</p>
 					) : null}
 					<p>Expected revenue: {formatCents(visit.expected_revenue_cents)}</p>
 					<p>
