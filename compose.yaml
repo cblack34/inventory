@@ -1,0 +1,51 @@
+# `docker compose up --build` builds the image in `Dockerfile` and runs one
+# service: the entrypoint migrates the SQLite file on the named volume
+# `data`, then serves the app on port 8000.
+#
+# Secrets (`SHARED_PASSWORD`, `SESSION_SECRET`) come only from `.env` via
+# `env_file` below -- never from a default here. If `.env` is missing,
+# Compose refuses to start; if it exists but lacks (or has too-short) a
+# required value, the app's own fail-fast settings validation
+# (`inventory.settings.Settings`) exits 1 naming the offending variable.
+# That is enough on its own, so this file does not also use Compose's
+# `${VAR:?err}` interpolation for the same two variables -- that syntax
+# only guards a value substituted directly into this file, and these two
+# never are.
+services:
+  app:
+    build: .
+    ports:
+      # Loopback only: the TLS-terminating proxy on the same host is the one
+      # ingress in production, and a laptop reaches it at localhost:8000.
+      # Publishing on every interface would leave a plaintext path around
+      # the proxy through which the shared password could be sent.
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Absolute path on the `data` volume below; `Settings` rejects a
+      # relative path. Not a secret, so it lives here rather than in `.env`.
+      DB: /data/inventory.db
+    volumes:
+      - data:/data
+      - ./backups:/backups
+    # Bounded so a failed migration or a bad .env leaves a stopped container
+    # to diagnose (`docker compose logs app`) instead of an endless restart
+    # loop; a crash while serving still gets a few automatic restarts.
+    restart: on-failure:3
+    healthcheck:
+      # stdlib only (no curl in the image): a non-2xx response or a
+      # connection failure raises in `urllib.request.urlopen`, which exits
+      # this command non-zero.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request as u; u.urlopen("http://localhost:8000/api/v1/health", timeout=3)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  data:

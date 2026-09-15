@@ -32,3 +32,9 @@ In a second terminal, run the frontend, which proxies `/api` to it:
 ```bash
 npm run dev --prefix src/web
 ```
+
+## Running it in Docker
+
+`docker compose up --build` builds one image and runs the app the way it
+runs in deployment. See [docs/deployment.md](docs/deployment.md) for
+configuration, the backup command, and secret rotation.

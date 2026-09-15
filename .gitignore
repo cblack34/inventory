@@ -368,3 +368,7 @@ dist-ssr/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# docker compose's bind-mounted backup destination (docs/deployment.md):
+# real business data once a backup has run against it.
+/backups/
