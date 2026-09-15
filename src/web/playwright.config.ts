@@ -6,8 +6,6 @@ import { defineConfig, devices } from "@playwright/test";
 // `python -m inventory` against it (that command never migrates itself).
 export default defineConfig({
 	testDir: "e2e",
-	fullyParallel: false,
-	reporter: "list",
 	use: {
 		baseURL: "http://localhost:8000",
 	},
