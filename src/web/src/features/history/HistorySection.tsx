@@ -76,10 +76,13 @@ function EntryCard({
 			const body: ReversalCreate = { entry_id: entry.entry_id };
 			return request<ReversalRead>("POST", "/api/v1/reversals", body);
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["stock"] });
-			queryClient.invalidateQueries({ queryKey: ["entries"] });
-		},
+		// Awaited so the Undo button stays disabled until the entry re-renders
+		// as voided; otherwise a second click could fire before the refetch.
+		onSuccess: () =>
+			Promise.all([
+				queryClient.invalidateQueries({ queryKey: ["stock"] }),
+				queryClient.invalidateQueries({ queryKey: ["entries"] }),
+			]),
 	});
 
 	const handleUndo = () => {
@@ -107,7 +110,7 @@ function EntryCard({
 				{entry.profit_cents !== null ? (
 					<p className="text-sm">Profit {formatCents(entry.profit_cents)}</p>
 				) : null}
-				{!entry.voided ? (
+				{canUndo(entry) ? (
 					<Button
 						type="button"
 						size="sm"
@@ -127,6 +130,11 @@ function EntryCard({
 			</CardContent>
 		</Card>
 	);
+}
+
+/** Undo targets a bake, visit, or manual entry; a reversal is never undone (docs/data-model.md). */
+function canUndo(entry: EntryRead): boolean {
+	return !entry.voided && entry.kind !== "reversal";
 }
 
 /** `created_at` is an ISO instant; render it as the viewer's local calendar date. */

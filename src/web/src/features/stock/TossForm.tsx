@@ -65,9 +65,14 @@ export function TossForm({
 			};
 			return request<EntryRead>("POST", "/api/v1/movements", body);
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["stock"] });
-			queryClient.invalidateQueries({ queryKey: ["entries"] });
+		// Awaited so the form (and its disabled submit) stays up until the
+		// stock row shows the new on-hand; closing early would let a second
+		// toss be entered against a stale count.
+		onSuccess: async () => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: ["stock"] }),
+				queryClient.invalidateQueries({ queryKey: ["entries"] }),
+			]);
 			onCancel();
 		},
 	});
