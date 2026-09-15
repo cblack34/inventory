@@ -1,4 +1,4 @@
-.PHONY: check check-python check-web check-types install install-web generate-types
+.PHONY: check check-python check-web check-types install install-web generate-types e2e
 
 install:
 	uv sync --locked
@@ -33,3 +33,16 @@ generate-types: install install-web
 	tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
 	uv run python -m inventory.openapi > $$tmp/openapi.json && \
 	npx --prefix src/web openapi-typescript $$tmp/openapi.json -o src/web/src/api/types.ts
+
+# Builds the frontend, migrates a scratch SQLite file, then runs the one
+# Playwright smoke test against a real server (Playwright's `webServer`
+# starts `python -m inventory`, which never migrates on its own).
+e2e: install install-web
+	npm run --prefix src/web build
+	npx --prefix src/web playwright install chromium
+	tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
+	DB=$$tmp/e2e.db uv run alembic upgrade head && \
+	DB=$$tmp/e2e.db SHARED_PASSWORD=e2e-password \
+	SESSION_SECRET=00000000000000000000000000000000 \
+	TIMEZONE=UTC INSECURE_COOKIES=true \
+	npm run --prefix src/web test:e2e
