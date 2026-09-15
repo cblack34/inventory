@@ -78,10 +78,18 @@ function EntryCard({
 		},
 		// Awaited so the Undo button stays disabled until the entry re-renders
 		// as voided; otherwise a second click could fire before the refetch.
+		// `throwOnError` turns a failed refetch into a mutation error, so a
+		// stale non-voided card cannot silently reappear as undoable.
 		onSuccess: () =>
 			Promise.all([
-				queryClient.invalidateQueries({ queryKey: ["stock"] }),
-				queryClient.invalidateQueries({ queryKey: ["entries"] }),
+				queryClient.invalidateQueries(
+					{ queryKey: ["stock"] },
+					{ throwOnError: true },
+				),
+				queryClient.invalidateQueries(
+					{ queryKey: ["entries"] },
+					{ throwOnError: true },
+				),
 			]),
 	});
 
@@ -116,6 +124,7 @@ function EntryCard({
 						size="sm"
 						variant="outline"
 						className="mt-1 self-start"
+						aria-label={`Undo ${entry.kind} ${entry.entry_id}`}
 						onClick={handleUndo}
 						disabled={undo.isPending}
 					>

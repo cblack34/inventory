@@ -54,4 +54,4 @@ The application is deployed as a service and its source is not distributed, but 
 - **Ask first:** GPL (any version).
 - **Never:** AGPL, SSPL, and any license that conditions use on publishing the calling code.
 
-Enforced by hand: the lead checks the license when proposing a dependency and records it in the approval. No license scanner runs in `make check`; add one only if the dependency count makes hand checks unreliable. Every row adopted above is MIT, BSD, Apache-2.0, ISC, or public domain.
+Enforced by hand: the lead checks the license when proposing a dependency and records it in the approval. No license scanner runs in `make check`; add one only if the dependency count makes hand checks unreliable. Every row adopted above is MIT, BSD, Apache-2.0, ISC, or public domain, except the shadcn preset's Geist font package, which is OFL-1.1.

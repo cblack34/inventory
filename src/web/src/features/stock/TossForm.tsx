@@ -68,16 +68,25 @@ export function TossForm({
 		// Awaited so the form (and its disabled submit) stays up until the
 		// stock row shows the new on-hand; closing early would let a second
 		// toss be entered against a stale count.
+		// `throwOnError` keeps a failed refetch from closing the form over a
+		// stale on-hand count; the error shows and the form stays open.
 		onSuccess: async () => {
 			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: ["stock"] }),
-				queryClient.invalidateQueries({ queryKey: ["entries"] }),
+				queryClient.invalidateQueries(
+					{ queryKey: ["stock"] },
+					{ throwOnError: true },
+				),
+				queryClient.invalidateQueries(
+					{ queryKey: ["entries"] },
+					{ throwOnError: true },
+				),
 			]);
 			onCancel();
 		},
 	});
 
 	const onSubmit = handleSubmit((values) => toss.mutate(values));
+	const errorId = `toss-quantity-error-${sizeId}`;
 
 	return (
 		<form
@@ -89,6 +98,8 @@ export function TossForm({
 					type="number"
 					inputMode="numeric"
 					aria-label="Quantity to toss"
+					aria-invalid={errors.quantity ? true : undefined}
+					aria-describedby={errors.quantity ? errorId : undefined}
 					className="w-16"
 					{...register("quantity", { valueAsNumber: true })}
 				/>
@@ -106,7 +117,7 @@ export function TossForm({
 				</Button>
 			</div>
 			{errors.quantity ? (
-				<p role="alert" className="text-sm text-destructive">
+				<p id={errorId} role="alert" className="text-sm text-destructive">
 					{errors.quantity.message}
 				</p>
 			) : null}

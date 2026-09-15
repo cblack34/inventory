@@ -130,6 +130,7 @@ function SizeRow({
 						size="sm"
 						variant="outline"
 						className="mt-1 self-start"
+						aria-label={`Toss ${size.recipe_name} ${size.size_name}`}
 						onClick={() => setTossing(true)}
 					>
 						Toss
