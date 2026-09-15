@@ -32,4 +32,18 @@ describe("parseDollarsToCents", () => {
 		expect(parseDollarsToCents("")).toBeNull();
 		expect(parseDollarsToCents("abc")).toBeNull();
 	});
+
+	it("accepts an amount at the API's per-field bound", () => {
+		expect(parseDollarsToCents("10000000.00")).toBe(1_000_000_000);
+	});
+
+	it("rejects an amount over the API's per-field bound", () => {
+		expect(parseDollarsToCents("10000000.01")).toBeNull();
+	});
+
+	it("rejects a huge amount without losing precision to a float path", () => {
+		// Far beyond Number.MAX_SAFE_INTEGER cents; must be rejected outright
+		// rather than silently rounded to some other in-range value.
+		expect(parseDollarsToCents("99999999999999999999.99")).toBeNull();
+	});
 });

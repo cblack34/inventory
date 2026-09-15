@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { z } from "zod";
@@ -181,8 +182,8 @@ type StandFormValues = z.infer<ReturnType<typeof standVisitSchema>>;
 function StandVisitFormInner({
 	locationId,
 	locationName,
-	sectionA,
-	sectionB,
+	sectionA: sectionAProp,
+	sectionB: sectionBProp,
 	onBack,
 }: {
 	locationId: number;
@@ -191,6 +192,13 @@ function StandVisitFormInner({
 	sectionB: RowMeta[];
 	onBack: () => void;
 }) {
+	// Captured once at mount: a background `["stock"]` refetch (window focus,
+	// another tab's mutation) that inserts or removes a size must never
+	// reshuffle which row index a form value or a validation limit belongs
+	// to. See the loader comment above for why the query is split from this
+	// component in the first place.
+	const [sectionA] = useState(() => sectionAProp);
+	const [sectionB] = useState(() => sectionBProp);
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const {

@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { z } from "zod";
@@ -183,7 +184,7 @@ type MarketFormValues = z.infer<ReturnType<typeof marketVisitSchema>>;
 function MarketVisitFormInner({
 	locationId,
 	locationName,
-	rowsMeta,
+	rowsMeta: rowsMetaProp,
 	onBack,
 }: {
 	locationId: number;
@@ -191,6 +192,11 @@ function MarketVisitFormInner({
 	rowsMeta: MarketRowMeta[];
 	onBack: () => void;
 }) {
+	// Captured once at mount: a background `["stock"]` refetch (window focus,
+	// another tab's mutation) must never reshuffle which row index a form
+	// value or a validation limit belongs to. See `StandVisitForm`'s loader
+	// comment for the same reasoning.
+	const [rowsMeta] = useState(() => rowsMetaProp);
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const {
