@@ -53,7 +53,9 @@ COPY --from=web-build /app/src/web/dist src/web/dist
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-RUN chown -R app:app /app
+# /app stays root-owned and read-only to the runtime user: the venv is fully
+# built above and UV_NO_SYNC=1 means nothing writes here at runtime. Only
+# /data (below) and the bind-mounted /backups are writable by `app`.
 
 # The mount point for the `data` named volume (compose.yaml). Docker
 # Compose seeds a brand-new named volume from whatever already exists at
