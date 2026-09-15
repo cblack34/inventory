@@ -31,3 +31,9 @@ jobs:
 
       - name: Run checks
         run: make check
+
+      - name: Install Playwright browser
+        run: npx --prefix src/web playwright install --with-deps chromium
+
+      - name: Run e2e smoke test
+        run: make e2e

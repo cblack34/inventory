@@ -361,5 +361,10 @@ node_modules/
 dist-ssr/
 *.local
 
+# Playwright (make e2e)
+/src/web/test-results/
+/src/web/playwright-report/
+/src/web/playwright/.cache/
+
 # Claude Code agent worktrees
 .claude/worktrees/

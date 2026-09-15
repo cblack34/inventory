@@ -1,5 +1,22 @@
+import { Route, Routes } from "react-router";
+import { Layout } from "@/components/Layout";
+import { HomePage } from "@/pages/HomePage";
+import { LoginPage } from "@/pages/LoginPage";
+
 function App() {
-	return <h1>inventory</h1>;
+	return (
+		<Routes>
+			<Route path="/login" element={<LoginPage />} />
+			<Route
+				path="/"
+				element={
+					<Layout>
+						<HomePage />
+					</Layout>
+				}
+			/>
+		</Routes>
+	);
 }
 
 export default App;
