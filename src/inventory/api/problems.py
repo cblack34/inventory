@@ -95,6 +95,25 @@ def _sanitized_errors(errors: Sequence[Mapping[str, Any]]) -> list[dict[str, Any
     ]
 
 
+def _validation_location(exc: RequestValidationError) -> str:
+    """The first error's request part (`body`, `query`, `path`, ...), or `body` as a fallback.
+
+    `RequestValidationError` covers every part of the request FastAPI
+    validates through a Pydantic model, not only the JSON body -- a
+    path parameter like `IdPath` (`GET /ingredients/0`) or a query
+    parameter fails through the same exception, with `errors()[0]["loc"]`
+    naming the part first. A hard-coded "request body failed
+    validation" read as wrong for those; deriving the word instead
+    keeps the detail accurate for whichever part actually failed.
+    """
+    errors = exc.errors()
+    if errors and errors[0]["loc"]:
+        location = errors[0]["loc"][0]
+        if isinstance(location, str):
+            return location
+    return "body"
+
+
 def _http_status_title(status_code: int) -> str:
     """`HTTPStatus(status_code).phrase`, or `HTTP {status_code}` for a non-standard code.
 
@@ -205,7 +224,7 @@ def install_problem_handlers(app: FastAPI) -> None:
             type=_PROBLEM_URN_PREFIX + "validation",
             title="Validation Error",
             status=422,
-            detail="request body failed validation",
+            detail=f"request {_validation_location(exc)} failed validation",
         )
         errors = _sanitized_errors(exc.errors())
         return _response(problem, request=request, extra={"errors": errors})

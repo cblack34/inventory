@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from inventory.api.auth import require_session
-from inventory.api.deps import read_session, write_session
+from inventory.api.deps import WriteSession, read_session
 from inventory.api.schemas.catalog import (
     RecipeCreate,
     RecipeLineInput,
@@ -107,9 +107,7 @@ def get_recipe(recipe_id: IdPath, session: Session = Depends(read_session)) -> R
 
 
 @router.post("", status_code=201)
-def create_recipe_route(
-    payload: RecipeCreate, session: Session = Depends(write_session)
-) -> RecipeRead:
+def create_recipe_route(payload: RecipeCreate, session: WriteSession) -> RecipeRead:
     request = RecipeCreateRequest(
         name=payload.name,
         shelf_life_days=payload.shelf_life_days,
@@ -126,7 +124,7 @@ def create_recipe_route(
 
 @router.patch("/{recipe_id}")
 def update_recipe_route(
-    recipe_id: IdPath, payload: RecipePatch, session: Session = Depends(write_session)
+    recipe_id: IdPath, payload: RecipePatch, session: WriteSession
 ) -> RecipeRead:
     request = RecipePatchRequest(
         name=payload.name,

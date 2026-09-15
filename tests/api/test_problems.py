@@ -124,6 +124,24 @@ def test_unknown_body_key_returns_422_with_errors_list(client: TestClient) -> No
     assert body["type"] == "urn:inventory:problem:validation"
     assert isinstance(body["errors"], list)
     assert body["errors"]
+    assert body["detail"] == "request body failed validation"
+
+
+def test_out_of_bounds_path_id_names_the_path_not_the_body(client: TestClient) -> None:
+    """`RequestValidationError` also fires for a path parameter (`IdPath`), not only the body.
+
+    `errors[0]["loc"] == ["path", "ingredient_id"]` here; `detail` must
+    say "path", not the body-only wording every other 422 in this file
+    happens to share.
+    """
+    login(client)
+    response = client.get("/api/v1/ingredients/0")
+
+    assert response.status_code == 422
+    body = response.json()
+    Problem.model_validate(body)
+    assert body["errors"][0]["loc"] == ["path", "ingredient_id"]
+    assert body["detail"] == "request path failed validation"
 
 
 def test_validation_errors_never_echo_the_submitted_value(client: TestClient) -> None:

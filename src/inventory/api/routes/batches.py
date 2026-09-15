@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from inventory.api.auth import require_session
-from inventory.api.deps import now, read_session, write_session
+from inventory.api.deps import WriteSession, now, read_session
 from inventory.api.schemas.ids import IdPath
 from inventory.api.schemas.ledger import BatchCreate, BatchRead
 from inventory.api.stock_context import catalog_errors
@@ -35,7 +35,7 @@ def _load_batch(session: Session, batch_id: int) -> Batch:
 @router.post("", status_code=201)
 def create_batch(
     payload: BatchCreate,
-    session: Session = Depends(write_session),
+    session: WriteSession,
     moment: datetime = Depends(now),
 ) -> BatchRead:
     request = BakeRequest(

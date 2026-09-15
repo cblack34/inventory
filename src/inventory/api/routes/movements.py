@@ -10,10 +10,9 @@ behind `require_session`.
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
 from inventory.api.auth import require_session
-from inventory.api.deps import now, write_session
+from inventory.api.deps import WriteSession, now
 from inventory.api.schemas.ledger import EntryRead, MovementCreate
 from inventory.api.stock_context import with_catalog_names
 from inventory.db.models import Entry
@@ -26,7 +25,7 @@ router = APIRouter(prefix="/movements", tags=["movements"], dependencies=[Depend
 @router.post("", status_code=201)
 def create_movement(
     payload: MovementCreate,
-    session: Session = Depends(write_session),
+    session: WriteSession,
     moment: datetime = Depends(now),
 ) -> EntryRead:
     move = ManualMove(

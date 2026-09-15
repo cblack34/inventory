@@ -20,6 +20,7 @@ from typing import Annotated, Literal, cast
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from inventory.api.schemas.ids import Id
+from inventory.api.schemas.numbers import Cents, Count, PositiveCount
 from inventory.db.models import Batch
 from inventory.db.models import Visit as VisitRow
 from inventory.domain.visits import Profit
@@ -31,7 +32,7 @@ class BakeCountItem(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     size_id: Id
-    count: int = Field(ge=0)
+    count: Count
 
 
 class BatchCreate(BaseModel):
@@ -106,7 +107,7 @@ class MovementCreate(BaseModel):
     from_location_id: Id
     to_location_id: Id
     size_id: Id
-    quantity: int = Field(ge=1)
+    quantity: PositiveCount
 
 
 # --- Reversals ------------------------------------------------------------------
@@ -130,19 +131,19 @@ class StandRowIn(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     size_id: Id
-    counted: int = Field(ge=0)
-    tossed: int = Field(ge=0)
-    pulled: int = Field(ge=0)
-    added: int = Field(ge=0)
+    counted: Count
+    tossed: Count
+    pulled: Count
+    added: Count
 
 
 class MarketRowIn(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     size_id: Id
-    taken: int = Field(ge=0)
-    returned: int = Field(ge=0)
-    tossed: int = Field(ge=0)
+    taken: Count
+    returned: Count
+    tossed: Count
 
 
 class StandVisitCreate(BaseModel):
@@ -151,7 +152,7 @@ class StandVisitCreate(BaseModel):
     kind: Literal["stand"]
     location_id: Id
     rows: list[StandRowIn] = Field(default_factory=list[StandRowIn])
-    revenue_cents: int = Field(ge=0)
+    revenue_cents: Cents
 
 
 class MarketVisitCreate(BaseModel):
@@ -160,8 +161,8 @@ class MarketVisitCreate(BaseModel):
     kind: Literal["market"]
     location_id: Id
     rows: list[MarketRowIn] = Field(default_factory=list[MarketRowIn])
-    revenue_cents: int = Field(ge=0)
-    fee_cents: int = Field(ge=0)
+    revenue_cents: Cents
+    fee_cents: Cents
 
 
 VisitCreate = Annotated[StandVisitCreate | MarketVisitCreate, Field(discriminator="kind")]

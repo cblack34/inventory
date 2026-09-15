@@ -15,7 +15,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
 from inventory.api.auth import require_session
-from inventory.api.deps import now, read_session, write_session
+from inventory.api.deps import WriteSession, now, read_session
 from inventory.api.schemas.ids import IdPath
 from inventory.api.schemas.ledger import MarketVisitCreate, StandVisitCreate, VisitCreate, VisitRead
 from inventory.api.stock_context import with_catalog_names
@@ -77,7 +77,7 @@ def _visit_read(session: Session, entry_id: int, *, voided: bool) -> VisitRead:
 @router.post("", status_code=201)
 def create_visit(
     payload: VisitCreate,
-    session: Session = Depends(write_session),
+    session: WriteSession,
     moment: datetime = Depends(now),
 ) -> VisitRead:
     try:

@@ -273,6 +273,76 @@ def test_unknown_ingredient_in_a_line_is_rejected(client: TestClient) -> None:
     assert response.json()["type"] == "urn:inventory:problem:unknown-ingredient"
 
 
+def test_duplicate_ingredient_id_in_create_lines_is_rejected(client: TestClient) -> None:
+    """Two lines naming the same ingredient would silently double the recipe's cost."""
+    login(client)
+    ingredient_id = _create_ingredient(client, price_cents=100)
+
+    response = client.post(
+        "/api/v1/recipes",
+        json={
+            "name": "Cookie",
+            "shelf_life_days": 5,
+            "lines": [
+                {"ingredient_id": ingredient_id, "quantity": 1},
+                {"ingredient_id": ingredient_id, "quantity": 1},
+            ],
+            "sizes": [
+                {
+                    "name": "Regular",
+                    "portion_weight_g": 10,
+                    "price_cents": 100,
+                    "typical_yield_count": 1,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"]
+
+
+def test_duplicate_ingredient_id_in_patch_lines_is_rejected(client: TestClient) -> None:
+    login(client)
+    recipe = _create_recipe_with_two_sizes(client)
+    ingredient_id = recipe["lines"][0]["ingredient_id"]
+
+    response = client.patch(
+        f"/api/v1/recipes/{recipe['id']}",
+        json={
+            "lines": [
+                {"ingredient_id": ingredient_id, "quantity": 1},
+                {"ingredient_id": ingredient_id, "quantity": 2},
+            ]
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"]
+
+
+def test_patch_size_with_nonexistent_id_is_422_not_404(client: TestClient) -> None:
+    """A `sizes` patch item's `id` is a body reference, not the URI resource.
+
+    A missing size id must read the same as a foreign one -- 422
+    `size-not-in-recipe` -- never a 404, which would read as if the
+    *recipe* being patched (the URI resource) did not exist.
+    """
+    login(client)
+    recipe = _create_recipe_with_two_sizes(client)
+
+    response = client.patch(
+        f"/api/v1/recipes/{recipe['id']}",
+        json={"sizes": [{"id": 999999, "price_cents": 1}]},
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["type"] == "urn:inventory:problem:size-not-in-recipe"
+    assert body["size_id"] == 999999
+    assert body["recipe_id"] == recipe["id"]
+
+
 def test_size_names_are_unique_case_insensitively_within_a_recipe(client: TestClient) -> None:
     login(client)
     ingredient_id = _create_ingredient(client, price_cents=100)

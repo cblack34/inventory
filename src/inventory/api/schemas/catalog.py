@@ -12,10 +12,11 @@ Money fields end in `_cents`, weight fields in `_g`, matching
 
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
 from inventory.api.schemas.ids import Id
+from inventory.api.schemas.numbers import Cents, Count, PositiveCount
 from inventory.db.models import Recipe
 from inventory.domain.costing import RecipeLine as CostLine
 from inventory.domain.costing import SizeYield, recipe_cost_cents, split_unit_costs
@@ -28,7 +29,7 @@ class IngredientCreate(BaseModel):
 
     name: str = Field(min_length=1)
     unit_label: str = Field(min_length=1)
-    current_price_cents: int = Field(ge=0)
+    current_price_cents: Cents
 
 
 class IngredientUpdate(BaseModel):
@@ -36,7 +37,7 @@ class IngredientUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1)
     unit_label: str | None = Field(default=None, min_length=1)
-    current_price_cents: int | None = Field(default=None, ge=0)
+    current_price_cents: Cents | None = None
     active: bool | None = None
 
 
@@ -57,7 +58,7 @@ class RecipeLineInput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     ingredient_id: Id
-    quantity: int = Field(ge=0)
+    quantity: Count
 
 
 class RecipeLineRead(BaseModel):
@@ -71,9 +72,9 @@ class SizeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     name: str = Field(min_length=1)
-    portion_weight_g: int = Field(ge=1)
-    price_cents: int = Field(ge=0)
-    typical_yield_count: int = Field(ge=0)
+    portion_weight_g: PositiveCount
+    price_cents: Cents
+    typical_yield_count: Count
 
 
 class SizePatchItem(BaseModel):
@@ -95,9 +96,9 @@ class SizePatchItem(BaseModel):
 
     id: Id | SkipJsonSchema[None] = None
     name: str | None = Field(default=None, min_length=1)
-    portion_weight_g: int | None = Field(default=None, ge=1)
-    price_cents: int | None = Field(default=None, ge=0)
-    typical_yield_count: int | None = Field(default=None, ge=0)
+    portion_weight_g: PositiveCount | None = None
+    price_cents: Cents | None = None
+    typical_yield_count: Count | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -111,6 +112,22 @@ class SizePatchItem(BaseModel):
         if isinstance(data, dict) and cast(dict[str, Any], data).get("id", "present") is None:
             raise ValueError("id must not be null; omit the key entirely to create a new size")
         return cast(Any, data)
+
+
+def _check_unique_ingredient_ids(lines: list[RecipeLineInput]) -> list[RecipeLineInput]:
+    """Raise if `lines` names the same `ingredient_id` twice.
+
+    `recipe_line` carries no `(recipe_id, ingredient_id)` uniqueness, and
+    `recipe_cost_cents` sums every line, so an accepted duplicate silently
+    doubles that ingredient's contribution to the recipe's (and, once
+    baked, the batch's frozen) cost.
+    """
+    seen: set[int] = set()
+    for line in lines:
+        if line.ingredient_id in seen:
+            raise ValueError(f"ingredient_id {line.ingredient_id} appears more than once in lines")
+        seen.add(line.ingredient_id)
+    return lines
 
 
 class SizeRead(BaseModel):
@@ -132,6 +149,13 @@ class RecipeCreate(BaseModel):
     lines: list[RecipeLineInput] = Field(default_factory=list[RecipeLineInput])
     sizes: list[SizeCreate] = Field(min_length=1)
 
+    @field_validator("lines")
+    @classmethod
+    def _reject_duplicate_ingredient_ids(
+        cls, lines: list[RecipeLineInput]
+    ) -> list[RecipeLineInput]:
+        return _check_unique_ingredient_ids(lines)
+
 
 class RecipePatch(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -140,6 +164,13 @@ class RecipePatch(BaseModel):
     shelf_life_days: int | None = Field(default=None, ge=0)
     lines: list[RecipeLineInput] | None = None
     sizes: list[SizePatchItem] | None = None
+
+    @field_validator("lines")
+    @classmethod
+    def _reject_duplicate_ingredient_ids(
+        cls, lines: list[RecipeLineInput] | None
+    ) -> list[RecipeLineInput] | None:
+        return lines if lines is None else _check_unique_ingredient_ids(lines)
 
 
 def _estimated_unit_costs(recipe: Recipe) -> dict[int, int]:

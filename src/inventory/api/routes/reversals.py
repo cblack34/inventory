@@ -9,10 +9,9 @@ entry it reverses -- not an entry update, so this resource has no
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
 from inventory.api.auth import require_session
-from inventory.api.deps import now, write_session
+from inventory.api.deps import WriteSession, now
 from inventory.api.schemas.ledger import ReversalCreate, ReversalRead
 from inventory.api.stock_context import with_catalog_names
 from inventory.db.writes import undo
@@ -24,7 +23,7 @@ router = APIRouter(prefix="/reversals", tags=["reversals"], dependencies=[Depend
 @router.post("", status_code=201)
 def create_reversal(
     payload: ReversalCreate,
-    session: Session = Depends(write_session),
+    session: WriteSession,
     moment: datetime = Depends(now),
 ) -> ReversalRead:
     try:

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from inventory.api.auth import require_session
-from inventory.api.deps import read_session, write_session
+from inventory.api.deps import WriteSession, read_session
 from inventory.api.schemas.catalog import IngredientCreate, IngredientRead, IngredientUpdate
 from inventory.api.schemas.ids import IdPath
 from inventory.api.stock_context import catalog_errors
@@ -36,9 +36,7 @@ def get_ingredient(
 
 
 @router.post("", status_code=201)
-def create_ingredient_route(
-    payload: IngredientCreate, session: Session = Depends(write_session)
-) -> IngredientRead:
+def create_ingredient_route(payload: IngredientCreate, session: WriteSession) -> IngredientRead:
     with catalog_errors(session):
         row = create_ingredient(
             session,
@@ -51,7 +49,7 @@ def create_ingredient_route(
 
 @router.patch("/{ingredient_id}")
 def update_ingredient_route(
-    ingredient_id: IdPath, payload: IngredientUpdate, session: Session = Depends(write_session)
+    ingredient_id: IdPath, payload: IngredientUpdate, session: WriteSession
 ) -> IngredientRead:
     patch = IngredientPatch(**payload.model_dump(exclude_unset=True))
     with catalog_errors(session):

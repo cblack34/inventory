@@ -12,6 +12,7 @@ sites that read them off `inventory.app` keep working unchanged.
 
 from collections.abc import Iterator
 from datetime import UTC, date, datetime
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, Request
@@ -34,9 +35,25 @@ def write_session(request: Request) -> Iterator[Session]:
     including a `DomainError` -- propagates through this `with` block
     first: `write_transaction` rolls back before the exception reaches
     the Problem Details handler that renders the response.
+
+    Every write route depends on this through `WriteSession` below, not
+    a bare `Depends(write_session)`: a generator dependency defaults to
+    scope `"request"`, whose teardown FastAPI runs from the
+    `AsyncExitStack` that closes *after* the response has already been
+    sent (`fastapi.routing.request_response`), so a client could see a
+    201 for a write this transaction had not yet committed. Scope
+    `"function"` tears down from the stack that closes *before* the
+    response is sent, so the commit is visible to any request the
+    client makes after receiving the response -- the exception-path
+    ordering above is unaffected either way, since both stacks unwind
+    on a raised exception before `wrap_app_handling_exceptions` builds
+    the error response.
     """
     with write_transaction(request.app.state.write_session_factory) as session:
         yield session
+
+
+WriteSession = Annotated[Session, Depends(write_session, scope="function")]
 
 
 def business_today(instant: datetime, timezone: ZoneInfo) -> date:

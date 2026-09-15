@@ -329,6 +329,12 @@ def _reject_foreign_or_incomplete_sizes(
     """Preflight every size item.
 
     An `id` must exist and belong to the recipe; a new item must be complete.
+
+    `item.id` is a body field naming a size, not the URI resource --
+    `session.get` (returning `None` for a miss) rather than `get_one`
+    (raising `NoResultFound`) keeps a nonexistent id a 422
+    `SizeNotInRecipeError` alongside a foreign one, instead of a 404
+    that reads like the *recipe* (the URI resource) was not found.
     """
     for item in items:
         if item.id is None:
@@ -336,8 +342,8 @@ def _reject_foreign_or_incomplete_sizes(
             if missing:
                 raise IncompleteSizeError(missing_fields=missing)
             continue
-        size = session.get_one(Size, item.id)
-        if size.recipe_id != recipe_id:
+        size = session.get(Size, item.id)
+        if size is None or size.recipe_id != recipe_id:
             raise SizeNotInRecipeError(size_id=item.id, recipe_id=recipe_id)
 
 
@@ -374,8 +380,8 @@ def _load_owned_sizes(
 ) -> dict[int, Size]:
     sizes: dict[int, Size] = {}
     for size_id, _item in updates:
-        size = session.get_one(Size, size_id)
-        if size.recipe_id != recipe_id:
+        size = session.get(Size, size_id)
+        if size is None or size.recipe_id != recipe_id:
             raise SizeNotInRecipeError(size_id=size_id, recipe_id=recipe_id)
         sizes[size_id] = size
     return sizes
