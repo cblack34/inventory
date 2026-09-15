@@ -22,7 +22,7 @@ describe("request", () => {
 					title: "Unprocessable Content",
 					status: 422,
 					detail: "password must not be empty",
-					instance: null,
+					instance: "/api/v1/session",
 					retry_after_seconds: 30,
 				}),
 			),
@@ -35,6 +35,7 @@ describe("request", () => {
 			const problem = error as ProblemError;
 			expect(problem.status).toBe(422);
 			expect(problem.detail).toBe("password must not be empty");
+			expect(problem.instance).toBe("/api/v1/session");
 			expect(problem.extensions).toEqual({ retry_after_seconds: 30 });
 			return true;
 		});

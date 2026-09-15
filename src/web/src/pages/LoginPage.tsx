@@ -35,7 +35,9 @@ export function LoginPage() {
 		<div className="flex min-h-screen items-center justify-center px-4">
 			<Card className="w-full max-w-sm">
 				<CardHeader>
-					<CardTitle>Log in</CardTitle>
+					<CardTitle asChild>
+						<h1>Log in</h1>
+					</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<form onSubmit={onSubmit} className="flex flex-col gap-4">

@@ -8,6 +8,7 @@ export class ProblemError extends Error {
 	readonly title: string;
 	readonly status: number;
 	readonly detail: string | null;
+	readonly instance: string | null;
 	readonly extensions: Record<string, unknown>;
 
 	constructor(problem: Problem) {
@@ -17,6 +18,7 @@ export class ProblemError extends Error {
 		this.title = problem.title;
 		this.status = problem.status;
 		this.detail = problem.detail;
+		this.instance = problem.instance;
 
 		const knownKeys = new Set([
 			"type",

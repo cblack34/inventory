@@ -113,7 +113,7 @@ function EntryCard({
 				{entry.revenue_cents !== null ? (
 					<p className="text-sm">Revenue {formatCents(entry.revenue_cents)}</p>
 				) : null}
-				{entry.profit_cents !== null ? (
+				{entry.profit_cents !== null && !locallyVoided ? (
 					<p className="text-sm">Profit {formatCents(entry.profit_cents)}</p>
 				) : null}
 				{canUndo(entry) && !locallyVoided ? (
