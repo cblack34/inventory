@@ -79,6 +79,8 @@ function EntryCard({
 	// without `throwOnError`: a refetch failure surfaces as this section's
 	// own query error state, not as a reason to leave Undo retryable.
 	const [locallyVoided, setLocallyVoided] = useState(false);
+	// One flag drives every voided-dependent field so the card flips as a unit.
+	const voided = entry.voided || locallyVoided;
 	const undo = useMutation({
 		mutationFn: () => {
 			const body: ReversalCreate = { entry_id: entry.entry_id };
@@ -102,9 +104,7 @@ function EntryCard({
 			<CardHeader>
 				<CardTitle className="flex items-center justify-between gap-2">
 					<span className="capitalize">{entry.kind}</span>
-					{entry.voided || locallyVoided ? (
-						<Badge variant="secondary">Voided</Badge>
-					) : null}
+					{voided ? <Badge variant="secondary">Voided</Badge> : null}
 				</CardTitle>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-1">
@@ -112,13 +112,13 @@ function EntryCard({
 					{localDate(entry.created_at)}
 					{locationName ? ` · ${locationName}` : ""}
 				</p>
-				{entry.revenue_cents !== null ? (
+				{entry.revenue_cents !== null && !voided ? (
 					<p className="text-sm">Revenue {formatCents(entry.revenue_cents)}</p>
 				) : null}
-				{entry.profit_cents !== null && !locallyVoided ? (
+				{entry.profit_cents !== null && !voided ? (
 					<p className="text-sm">Profit {formatCents(entry.profit_cents)}</p>
 				) : null}
-				{canUndo(entry) && !locallyVoided ? (
+				{!voided && entry.kind !== "reversal" ? (
 					<Button
 						type="button"
 						size="sm"
@@ -139,11 +139,6 @@ function EntryCard({
 			</CardContent>
 		</Card>
 	);
-}
-
-/** Undo targets a bake, visit, or manual entry; a reversal is never undone (docs/data-model.md). */
-function canUndo(entry: EntryRead): boolean {
-	return !entry.voided && entry.kind !== "reversal";
 }
 
 /** `created_at` is an ISO instant; render it as the viewer's local calendar date. */
