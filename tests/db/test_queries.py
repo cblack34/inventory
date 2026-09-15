@@ -7,12 +7,14 @@ See `docs/acceptance.md`, "Home screen and expiration", "Profit", and
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
+import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 
 from inventory.db.builtins import load_builtin_locations
-from inventory.db.queries import HistoryEntry, history, stock_by_location
+from inventory.db.queries import HistoryEntry, history, history_entry, stock_by_location
 from inventory.db.stock import load_stock
 from inventory.db.visits import MarketVisit, record_market_visit, visit_profit
 from inventory.db.writes import BakeRequest, ManualMove, record_bake, record_manual_move, undo
@@ -328,3 +330,36 @@ def test_history_runs_a_bounded_number_of_queries_and_matches_visit_profit(
         )
 
     assert query_count_with_three_visits == query_count_with_four_visits
+
+
+def test_history_entry_matches_the_history_row_and_is_bounded(
+    engine: Engine, single_size_recipe: SingleSizeRecipe, stand_and_market: StandAndMarket
+) -> None:
+    with Session(engine) as session:
+        record_bake(
+            session,
+            BakeRequest(
+                recipe_id=single_size_recipe.recipe_id,
+                baked=_NOW.date(),
+                expires=_NOW.date(),
+                counts={single_size_recipe.size_id: 10},
+            ),
+            now=_NOW,
+        )
+        visit_entry_id = _market_visit(
+            session,
+            _MarketVisitCounts(
+                market_id=stand_and_market.market_id,
+                size_id=single_size_recipe.size_id,
+                taken=4,
+                returned=1,
+                revenue_cents=500,
+            ),
+        )
+        session.commit()
+
+    with Session(engine) as session:
+        by_id = {row.entry_id: row for row in history(session)}
+        assert history_entry(session, visit_entry_id) == by_id[visit_entry_id]
+        with pytest.raises(NoResultFound):
+            history_entry(session, 999_999)
