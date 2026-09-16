@@ -35,8 +35,11 @@ MAX_TOTAL_CENTS = 10**12
 """Upper bound for a persisted money total.
 
 Comfortably inside SQLite's signed 64-bit ``INTEGER`` range
-(~9.22 * 10**18) even summed across many rows, and far above any real
-total this two-person business will ever produce.
+(~9.22 * 10**18) for every aggregate the write path checks (one batch's
+costs, one visit's expected revenue and movement cost); a SQL aggregate
+over an unbounded number of rows is not covered by this bound and must
+be checked where it is introduced. Far above any real total this
+two-person business will ever produce.
 """
 
 
