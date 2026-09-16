@@ -13,6 +13,7 @@ import { BakeForm } from "./BakeForm";
 
 type RecipeRead = components["schemas"]["RecipeRead"];
 type BatchRead = components["schemas"]["BatchRead"];
+type TodayResponse = components["schemas"]["TodayResponse"];
 
 type BakedResult = {
 	batch: BatchRead;
@@ -25,17 +26,27 @@ export function BakePage() {
 		queryKey: ["recipes"],
 		queryFn: () => request<RecipeRead[]>("GET", "/api/v1/recipes"),
 	});
+	// The bake form's `baked` prefill: the server's business date, not the
+	// browser's clock (`docs/data-model.md`, "Expiration").
+	const todayQuery = useQuery({
+		queryKey: ["today"],
+		queryFn: () => request<TodayResponse>("GET", "/api/v1/today"),
+	});
 	const [recipeId, setRecipeId] = useState<number | undefined>(undefined);
 	const [result, setResult] = useState<BakedResult | undefined>(undefined);
 
-	if (recipesQuery.isPending) {
+	if (recipesQuery.isPending || todayQuery.isPending) {
 		return <p>Loading recipes…</p>;
 	}
 	if (recipesQuery.isError && recipesQuery.data === undefined) {
 		return <p role="alert">{problemMessage(recipesQuery.error)}</p>;
 	}
+	if (todayQuery.isError && todayQuery.data === undefined) {
+		return <p role="alert">{problemMessage(todayQuery.error)}</p>;
+	}
 
 	const recipes = recipesQuery.data;
+	const today = todayQuery.data.today;
 
 	if (result) {
 		return (
@@ -76,6 +87,7 @@ export function BakePage() {
 			<BakeForm
 				key={recipe.id}
 				recipe={recipe}
+				today={today}
 				onBaked={(batch) => setResult({ batch, recipe })}
 			/>
 		</div>
