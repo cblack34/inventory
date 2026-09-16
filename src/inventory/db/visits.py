@@ -157,32 +157,28 @@ def _build_context(session: Session) -> Context:
     )
 
 
-def _require_bounded_movement_cost(session: Session, context: Context, plan: VisitPlan) -> None:
-    """Reject a plan whose Sold+Waste+Sampled cost would exceed `MAX_TOTAL_CENTS`.
+def _require_bounded_movement_cost(session: Session, plan: VisitPlan) -> None:
+    """Reject a plan whose movements' total cost would exceed `MAX_TOTAL_CENTS`.
 
     `_visit_costs_by_entry()` (`inventory.db.queries`) later re-sums
-    `unit_cost_cents * quantity` per destination in SQL for exactly these
-    movements; a per-size `unit_cost_cents` and a per-row quantity are each
-    individually bounded (`domain.money.MAX_TOTAL_CENTS`, `api.schemas.numbers`)
-    but their product is not, and FIFO can span several batches in one
-    visit, so the *sum* this planner is about to persist can still exceed
-    SQLite's signed 64-bit `INTEGER` range even though no single input did.
-    Computed here as a Python int (no overflow) before anything is
-    written, so a rejected visit never touches `entry`, `visit`, or
-    `movement`. `-_domain_visit_profit(...).profit_cents` reuses
-    `domain.visits.visit_profit`'s own cost sum (`revenue_cents = fee_cents
-    = 0` makes `profit_cents` exactly `-(sold + waste + sampled)`) rather
-    than re-deriving it here.
+    `unit_cost_cents * quantity` per destination in SQL over *every*
+    movement the visit wrote -- the Sold/Waste/Sampled legs profit reads,
+    and also the Kitchen-to-market `taken` and market-to-Kitchen `returned`
+    transfers -- so the sum over all planned movements is what has to stay
+    inside SQLite's signed 64-bit `INTEGER` range (past it SQLite quietly
+    promotes the product to a float). A per-size `unit_cost_cents` and a
+    per-row quantity are each individually bounded but their product is
+    not, and FIFO can span several batches in one visit. Computed here as
+    a Python int (no overflow) before anything is written, so a rejected
+    visit never touches `entry`, `visit`, or `movement`. Bounding the total
+    across every destination also bounds each per-destination sum.
     """
     batch_ids = {movement.batch_id for movement in plan.movements}
     movement_unit_costs = unit_costs(session, batch_ids)
-    total_movement_cost_cents = -_domain_visit_profit(
-        revenue_cents=0,
-        fee_cents=0,
-        movements=plan.movements,
-        unit_costs_cents=movement_unit_costs,
-        locations=context.locations,
-    ).profit_cents
+    total_movement_cost_cents = sum(
+        movement_unit_costs[(movement.batch_id, movement.size_id)] * movement.quantity
+        for movement in plan.movements
+    )
     require_bounded_total(total_movement_cost_cents, field="movement_cost_cents")
 
 
@@ -235,7 +231,7 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
     _require_known_sizes(visit.rows, context.prices_cents)
     plan = plan_stand_visit(visit.stand_id, visit.rows, context)
     require_bounded_total(plan.expected_revenue_cents, field="expected_revenue_cents")
-    _require_bounded_movement_cost(session, context, plan)
+    _require_bounded_movement_cost(session, plan)
 
     return _write_visit(
         session,
@@ -272,7 +268,7 @@ def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) 
     _require_known_sizes(visit.rows, context.prices_cents)
     plan = plan_market_visit(visit.market_id, visit.rows, context)
     require_bounded_total(plan.expected_revenue_cents, field="expected_revenue_cents")
-    _require_bounded_movement_cost(session, context, plan)
+    _require_bounded_movement_cost(session, plan)
 
     return _write_visit(
         session,

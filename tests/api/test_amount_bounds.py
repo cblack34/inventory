@@ -334,3 +334,41 @@ def test_stand_visit_movement_cost_overflow_is_rejected_and_writes_nothing(
 
     entries_after = client.get("/api/v1/entries").json()
     assert entries_after == entries_before
+
+
+def test_market_visit_take_and_return_cost_overflow_is_rejected_and_writes_nothing(
+    client: TestClient,
+) -> None:
+    """Transfers count too: taking and returning expensive stock sums past the bound.
+
+    A market visit that takes two near-max-cost units to the market and
+    returns both leaves Sold, Waste, and Sampled empty and
+    `expected_revenue_cents` at 0, yet `db.queries._visit_costs_by_entry`
+    sums `unit_cost_cents * quantity` per destination over *every* leg the
+    visit wrote, including the Kitchen-to-market and market-to-Kitchen
+    transfers. Bounding only the terminal legs would let this visit through
+    and leave the history aggregate to overflow in SQL.
+    """
+    login(client)
+    size_id = _bake_near_max_unit_cost(client, baked="2026-01-01", expires="2026-02-01")
+    other_size_id = _bake_near_max_unit_cost(client, baked="2026-01-02", expires="2026-02-02")
+    market = create_location(client, "market", "Market")
+    entries_before = client.get("/api/v1/entries").json()
+
+    response = client.post(
+        "/api/v1/visits",
+        json={
+            "kind": "market",
+            "location_id": market["id"],
+            "rows": [
+                {"size_id": size_id, "taken": 1, "returned": 1, "tossed": 0},
+                {"size_id": other_size_id, "taken": 1, "returned": 1, "tossed": 0},
+            ],
+            "revenue_cents": 0,
+            "fee_cents": 0,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["field"] == "movement_cost_cents"
+    assert client.get("/api/v1/entries").json() == entries_before
