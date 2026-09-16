@@ -297,11 +297,13 @@ def test_stand_visit_movement_cost_overflow_is_rejected_and_writes_nothing(
     that empties both in one settlement sums `10**12 + 10**12`
     Sold/Waste/Sampled cost, which crosses `MAX_TOTAL_CENTS` even though
     `expected_revenue_cents` (both sizes are zero-price) stays 0. This is
-    the read path `db.queries._visit_costs_by_entry` sums in SQL:
-    unprotected, either unit's `unit_cost_cents * quantity` product alone
-    (`10**12 * 1`) already sits at SQLite's float-conversion boundary, and
-    summed they exceed it -- exactly what `_require_bounded_movement_cost`
-    exists to reject before anything is written.
+    the read path `db.queries._visit_costs_by_entry` sums in SQL. The
+    figures here (`10**12 + 10**12`) exceed the application's own
+    `MAX_TOTAL_CENTS`, not SQLite's signed 64-bit limit (~9.22 * 10**18);
+    the application bound is deliberately far below the SQLite limit so
+    that no aggregate the write path checks can ever reach it. This is
+    exactly what `_require_bounded_movement_cost` exists to reject before
+    anything is written.
     """
     login(client)
     size_id = _bake_near_max_unit_cost(client, baked="2026-01-01", expires="2026-02-01")

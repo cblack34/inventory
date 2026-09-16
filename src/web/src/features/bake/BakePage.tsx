@@ -85,7 +85,9 @@ export function BakePage() {
 				</NativeSelect>
 			</div>
 			<BakeForm
-				key={recipe.id}
+				// Keyed on the business date too: a cached date that rolls over
+				// while this page is open remounts the form with fresh defaults.
+				key={`${recipe.id}-${today}`}
 				recipe={recipe}
 				today={today}
 				onBaked={(batch) => setResult({ batch, recipe })}
