@@ -8,7 +8,7 @@ import type { components } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addDays, todayIsoDate } from "@/lib/dates";
+import { addDays } from "@/lib/dates";
 import { problemMessage } from "@/lib/problemMessage";
 
 type RecipeRead = components["schemas"]["RecipeRead"];
@@ -42,6 +42,8 @@ function bakeSchema() {
 
 type BakeFormProps = {
 	recipe: RecipeRead;
+	/** The server's business date (`GET /api/v1/today`), as `YYYY-MM-DD`. */
+	today: string;
 	onBaked: (batch: BatchRead) => void;
 };
 
@@ -51,7 +53,11 @@ type BakeFormProps = {
  * Keyed by `recipe.id` from the parent so switching recipes remounts this
  * form with fresh defaults instead of syncing state through an effect.
  */
-export function BakeForm({ recipe: recipeProp, onBaked }: BakeFormProps) {
+export function BakeForm({
+	recipe: recipeProp,
+	today,
+	onBaked,
+}: BakeFormProps) {
 	// Captured once at mount: a background `["recipes"]` refetch can replace
 	// `recipe.sizes` (reorder, add, remove a size) without changing
 	// `recipe.id`, and RHF's index-ordered `counts` would then be submitted
@@ -60,7 +66,7 @@ export function BakeForm({ recipe: recipeProp, onBaked }: BakeFormProps) {
 	// to the sizes this form actually rendered.
 	const [recipe] = useState(() => recipeProp);
 	const queryClient = useQueryClient();
-	const baked = todayIsoDate();
+	const baked = today;
 	const {
 		register,
 		handleSubmit,

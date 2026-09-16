@@ -4,7 +4,10 @@ The login page and the built asset bundle stay public; every other
 non-API path serves the SPA shell when the session is authenticated and
 redirects to `/login` otherwise. `/docs`, `/redoc`, and `/openapi.json`
 are FastAPI's disabled documentation routes and must stay 404, not fall
-through to the SPA catch-all below.
+through to the SPA catch-all below. A `GET` on a registered `/api` path
+that only accepts a different method (e.g. `GET /api/v1/movements`,
+which is `POST`-only) answers 405 with `Allow`, rather than the 404 an
+unknown API path gets -- see `_allowed_api_methods`.
 """
 
 import sys
@@ -12,10 +15,43 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.routing import iter_route_contexts
 from fastapi.staticfiles import StaticFiles
 
 _DIST_DIR = Path(__file__).parents[2] / "web" / "dist"
 _DISABLED_DOC_ROUTES = frozenset({"docs", "redoc", "openapi.json"})
+
+
+def _allowed_api_methods(app: FastAPI, request_path: str) -> frozenset[str]:
+    """Every HTTP method a registered route matches `request_path`, or an empty set.
+
+    `spa()`'s own catch-all (`GET /{path:path}`) is registered last and
+    matches any path -- including an existing `/api` resource requested
+    with the wrong method -- so it wins Starlette's routing loop before
+    the real route ever gets a chance to answer 405 itself. Re-deriving
+    the accepted methods here lets `spa()` answer 405 with `Allow`
+    instead of masking the mismatch as a 404.
+
+    Uses `iter_route_contexts` -- the same flattening FastAPI's own
+    OpenAPI generator uses -- rather than walking `app.routes` by hand:
+    `include_router` wraps each included router in a lazy
+    `_IncludedRouter` that only resolves nested routes (and applies
+    their path prefix) on demand, so there is no other way to get a
+    flat list of every route's final path and methods. Only considers
+    a route whose own path starts with `/api`: this excludes `spa()`'s
+    own greedy `/{path:path}` catch-all (which would otherwise "match"
+    every path, including this one, and wrongly add `GET` to the
+    result), `/login`, and the `/assets` mount.
+    """
+    allowed: set[str] = set()
+    for context in iter_route_contexts(app.routes):
+        methods = context.methods
+        path_regex = getattr(context, "path_regex", None)
+        if not methods or path_regex is None or context.path is None:
+            continue
+        if context.path.startswith("/api") and path_regex.fullmatch(request_path):
+            allowed.update(methods)
+    return frozenset(allowed)
 
 
 def _root_dist_file(dist_dir: Path, normalized_path: str) -> Path | None:
@@ -79,7 +115,12 @@ def mount_static(app: FastAPI) -> None:
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str, request: Request) -> Response:
         normalized = path.strip("/")
-        if normalized.startswith("api/") or normalized in _DISABLED_DOC_ROUTES:
+        if normalized in _DISABLED_DOC_ROUTES:
+            raise HTTPException(status_code=404)
+        if normalized.startswith("api/"):
+            allowed = _allowed_api_methods(request.app, request.url.path)
+            if allowed:
+                raise HTTPException(status_code=405, headers={"Allow": ", ".join(sorted(allowed))})
             raise HTTPException(status_code=404)
         root_file = _root_dist_file(dist_dir, normalized)
         if root_file is not None:
