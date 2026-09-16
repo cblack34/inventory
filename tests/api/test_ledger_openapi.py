@@ -6,6 +6,8 @@ an entry update; and no route anywhere declares a state-changing `GET`
 (a `GET` operation with a request body).
 """
 
+from typing import Any
+
 from fastapi import FastAPI
 
 _LEDGER_PATH_PREFIXES = (
@@ -51,3 +53,86 @@ def test_movements_resource_has_no_list_or_detail_get(app: FastAPI) -> None:
     schema = app.openapi()
 
     assert "get" not in schema["paths"]["/api/v1/movements"]
+
+
+def _declared_type(property_schema: dict[str, Any]) -> str | None:
+    """The JSON Schema `type` of `property_schema`, unwrapping an optional field's `anyOf`.
+
+    Mirrors `tests.api.test_catalog_openapi._declared_type`; duplicated
+    here (rather than imported) so each OpenAPI-shape module stays a
+    self-contained pin -- see that module's docstring for why a nullable
+    field renders as `anyOf` rather than a top-level `type`. Returns a
+    type only when every non-null `anyOf` branch agrees on it, so e.g.
+    `anyOf: [{type: integer}, {type: string}, {type: null}]` (a field
+    that isn't cleanly one type) resolves to `None` rather than
+    silently picking the first branch and passing an `== "integer"`
+    check it shouldn't.
+    """
+    if "type" in property_schema:
+        return property_schema["type"]
+    non_null_types = {
+        branch["type"]
+        for branch in property_schema.get("anyOf", ())
+        if branch.get("type") not in (None, "null")
+    }
+    if len(non_null_types) == 1:
+        return next(iter(non_null_types))
+    return None
+
+
+def test_declared_type_requires_every_non_null_anyof_branch_to_agree() -> None:
+    """Pins the tightened `_declared_type`: a mixed `anyOf` is not silently `integer`."""
+    assert _declared_type({"type": "integer"}) == "integer"
+    assert _declared_type({"anyOf": [{"type": "integer"}, {"type": "null"}]}) == "integer"
+    assert (
+        _declared_type({"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}]})
+        is None
+    )
+    assert _declared_type({"anyOf": [{"type": "null"}]}) is None
+
+
+def test_every_ledger_money_weight_and_quantity_field_is_integer(app: FastAPI) -> None:
+    """The ledger-side counterpart of the catalog OpenAPI-integer check.
+
+    Explicit per-schema field list (mirroring
+    `docs/acceptance.md`'s Money enumeration) rather than a name-suffix
+    heuristic, so a schema that drops `type: integer` -- or a renamed
+    field this list is not updated for -- fails loudly rather than being
+    silently skipped.
+    """
+    schemas = app.openapi()["components"]["schemas"]
+    expected_integer_fields = {
+        "BakeCountItem": ("count",),
+        "BatchRead": ("total_cost_cents",),
+        "BatchSizeRead": ("count_made", "unit_cost_cents"),
+        "MovementCreate": ("quantity",),
+        "StandRowIn": ("counted", "tossed", "pulled", "added"),
+        "MarketRowIn": ("taken", "returned", "tossed"),
+        "StandVisitCreate": ("revenue_cents",),
+        "MarketVisitCreate": ("revenue_cents", "fee_cents"),
+        "VisitRead": (
+            "revenue_cents",
+            "fee_cents",
+            "expected_revenue_cents",
+            "difference_cents",
+        ),
+        "ProfitRead": (
+            "sold_cost_cents",
+            "waste_cost_cents",
+            "sampled_cost_cents",
+            "profit_cents",
+        ),
+        "BatchStockRead": ("quantity",),
+        "SizeStockRead": ("quantity",),
+        # `EntryRead.revenue_cents`/`profit_cents` are `int | None` (a
+        # non-visit entry has neither); the OpenAPI shape is
+        # `anyOf: [{type: integer}, {type: null}]`, which
+        # `_declared_type` already unwraps to the non-null branch.
+        "EntryRead": ("revenue_cents", "profit_cents"),
+    }
+
+    for schema_name, fields in expected_integer_fields.items():
+        properties = schemas[schema_name]["properties"]
+        for field in fields:
+            declared_type = _declared_type(properties[field])
+            assert declared_type == "integer", f"{schema_name}.{field} is {declared_type!r}"
