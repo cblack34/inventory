@@ -25,6 +25,7 @@ from inventory.db.stock import load_stock, unit_costs
 from inventory.db.writes import InvalidQuantityError, UnknownSizeError
 from inventory.domain import DomainError
 from inventory.domain.ledger import PlannedMovement
+from inventory.domain.money import require_bounded_total
 from inventory.domain.visits import (
     Context,
     MarketRow,
@@ -191,8 +192,9 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
     `pulled`, or `added` on any row, and a `stand_id` that is missing,
     not a `stand`, or inactive -- all before loading stock.
     `plan_stand_visit` raises before returning if any size's counted,
-    tossed+pulled, or added is invalid, so nothing is written on
-    rejection.
+    tossed+pulled, or added is invalid, and an expected revenue past
+    `domain.money.MAX_TOTAL_CENTS` is rejected right after, so nothing
+    is written on rejection.
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
@@ -202,6 +204,7 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
     context = _build_context(session)
     _require_known_sizes(visit.rows, context.prices_cents)
     plan = plan_stand_visit(visit.stand_id, visit.rows, context)
+    require_bounded_total(plan.expected_revenue_cents, field="expected_revenue_cents")
 
     return _write_visit(
         session,
@@ -223,7 +226,9 @@ def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) 
     `taken`, `returned`, or `tossed` on any row, and a `market_id` that
     is missing, not a `market`, or inactive -- all before loading
     stock. `plan_market_visit` raises before returning if any size's
-    returned+tossed exceeds taken, so nothing is written on rejection.
+    returned+tossed exceeds taken, and an expected revenue past
+    `domain.money.MAX_TOTAL_CENTS` is rejected right after, so nothing
+    is written on rejection.
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
@@ -235,6 +240,7 @@ def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) 
     context = _build_context(session)
     _require_known_sizes(visit.rows, context.prices_cents)
     plan = plan_market_visit(visit.market_id, visit.rows, context)
+    require_bounded_total(plan.expected_revenue_cents, field="expected_revenue_cents")
 
     return _write_visit(
         session,

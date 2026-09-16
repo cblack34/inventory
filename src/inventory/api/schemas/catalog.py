@@ -145,7 +145,7 @@ class RecipeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     name: str = Field(min_length=1)
-    shelf_life_days: int = Field(ge=0)
+    shelf_life_days: Count
     lines: list[RecipeLineInput] = Field(default_factory=list[RecipeLineInput])
     sizes: list[SizeCreate] = Field(min_length=1)
 
@@ -161,7 +161,7 @@ class RecipePatch(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     name: str | None = Field(default=None, min_length=1)
-    shelf_life_days: int | None = Field(default=None, ge=0)
+    shelf_life_days: Count | None = None
     lines: list[RecipeLineInput] | None = None
     sizes: list[SizePatchItem] | None = None
 

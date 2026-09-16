@@ -24,6 +24,7 @@ from inventory.domain.costing import RecipeLine as CostLine
 from inventory.domain.costing import SizeYield, recipe_cost_cents, split_unit_costs
 from inventory.domain.ledger import Movement as LedgerMovement
 from inventory.domain.ledger import allocate_fifo, plan_reversal
+from inventory.domain.money import require_bounded_total
 from inventory.domain.visits import Locations
 
 _TRANSFERABLE_KINDS = ("kitchen", "stand")
@@ -156,7 +157,10 @@ def record_bake(session: Session, request: BakeRequest, *, now: datetime) -> int
     an all-zero (or empty) `counts` -- `domain.costing.ZeroWeightError`
     propagates from `split_unit_costs` -- both before writing anything. A
     size absent from `counts`, or present with a zero count, gets no
-    `batch_size` row and no movement.
+    `batch_size` row and no movement. Also rejects a batch or per-size
+    cost that would exceed `domain.money.MAX_TOTAL_CENTS` (a well-formed
+    request with maximal per-field inputs can still sum to a total
+    beyond SQLite's signed 64-bit range) -- all before writing anything.
     """
     if request.expires < request.baked:
         raise ExpiresBeforeBakedError(baked=request.baked, expires=request.expires)
@@ -164,6 +168,9 @@ def record_bake(session: Session, request: BakeRequest, *, now: datetime) -> int
     batch_cost_cents = _batch_cost_cents(session, request.recipe_id)
     yields = _bake_yields(session, request.recipe_id, request.counts)
     unit_costs_by_size = split_unit_costs(batch_cost_cents, yields)
+    require_bounded_total(batch_cost_cents, field="total_cost_cents")
+    for unit_cost_cents in unit_costs_by_size.values():
+        require_bounded_total(unit_cost_cents, field="unit_cost_cents")
 
     builtins = load_builtin_locations(session)
 
