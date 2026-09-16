@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -31,6 +31,35 @@ jobs:
 
       - name: Run checks
         run: make check
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: src/web/.node-version
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('src/web/package-lock.json') }}
+
+      # Install web deps first so `npx playwright` resolves the lockfile-pinned
+      # package (the one the cache key hashes), not a freshly fetched latest.
+      - name: Install web dependencies
+        run: make install-web
 
       - name: Install Playwright browser
         run: npx --prefix src/web playwright install --with-deps chromium
