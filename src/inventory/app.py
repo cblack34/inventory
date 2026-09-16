@@ -6,12 +6,13 @@ never touch the real environment, and so `inventory.__main__` can fail
 fast on bad configuration before ever constructing the app.
 """
 
+from datetime import date
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from pydantic import BaseModel
 
-from inventory.api.auth import LoginThrottle, install_auth
+from inventory.api.auth import LoginThrottle, install_auth, require_session
 from inventory.api.deps import business_today, now, read_session, today, write_session
 from inventory.api.problems import install_problem_handlers, problem_response
 from inventory.api.routes.batches import router as batches_router
@@ -33,6 +34,7 @@ from inventory.settings import Settings
 # and, soon, ledger routes -- keep working unchanged.
 __all__ = [
     "HealthResponse",
+    "TodayResponse",
     "business_today",
     "create_app",
     "now",
@@ -44,6 +46,10 @@ __all__ = [
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class TodayResponse(BaseModel):
+    today: date
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -75,6 +81,10 @@ def create_app(settings: Settings) -> FastAPI:
     @app.get("/api/v1/health")
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    @app.get("/api/v1/today", dependencies=[Depends(require_session)])
+    def get_today(today_value: date = Depends(today)) -> TodayResponse:
+        return TodayResponse(today=today_value)
 
     app.include_router(ingredients_router, prefix="/api/v1")
     app.include_router(recipes_router, prefix="/api/v1")

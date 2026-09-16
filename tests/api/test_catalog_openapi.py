@@ -38,14 +38,33 @@ def _declared_type(property_schema: dict[str, Any]) -> str | None:
     ...}, {"type": "null"}]}` rather than a top-level `type`, since a
     nullable field has no single JSON Schema type; every patch/update
     field checked here is exactly that shape, so the non-null branch's
-    `type` is what matters.
+    `type` is what matters. Returns a type only when every non-null
+    `anyOf` branch agrees on it, so e.g. `anyOf: [{type: integer},
+    {type: string}, {type: null}]` (a field that isn't cleanly one
+    type) resolves to `None` rather than silently picking the first
+    branch and passing an `== "integer"` check it shouldn't.
     """
     if "type" in property_schema:
         return property_schema["type"]
-    for branch in property_schema.get("anyOf", ()):
-        if branch.get("type") not in (None, "null"):
-            return branch["type"]
+    non_null_types = {
+        branch["type"]
+        for branch in property_schema.get("anyOf", ())
+        if branch.get("type") not in (None, "null")
+    }
+    if len(non_null_types) == 1:
+        return next(iter(non_null_types))
     return None
+
+
+def test_declared_type_requires_every_non_null_anyof_branch_to_agree() -> None:
+    """Pins the tightened `_declared_type`: a mixed `anyOf` is not silently `integer`."""
+    assert _declared_type({"type": "integer"}) == "integer"
+    assert _declared_type({"anyOf": [{"type": "integer"}, {"type": "null"}]}) == "integer"
+    assert (
+        _declared_type({"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}]})
+        is None
+    )
+    assert _declared_type({"anyOf": [{"type": "null"}]}) is None
 
 
 def test_every_catalog_money_weight_and_quantity_field_is_integer(app: FastAPI) -> None:
