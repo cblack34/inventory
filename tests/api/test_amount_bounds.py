@@ -17,7 +17,14 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from tests.api.ledger_helpers import bake, create_ingredient, create_location, create_recipe, move
+from tests.api.ledger_helpers import (
+    bake,
+    create_ingredient,
+    create_location,
+    create_recipe,
+    kitchen_id,
+    move,
+)
 from tests.api.probes import login
 
 _MAX_FIELD_AMOUNT = 10**9
@@ -179,6 +186,151 @@ def test_stand_visit_expected_revenue_overflow_is_rejected_and_writes_nothing(
     assert response.status_code == 422
     body = response.json()
     assert body["field"] == "expected_revenue_cents"
+
+    entries_after = client.get("/api/v1/entries").json()
+    assert entries_after == entries_before
+
+
+def test_market_visit_expected_revenue_overflow_is_rejected_and_writes_nothing(
+    client: TestClient,
+) -> None:
+    """The market twin of the stand overflow test above: same shape, `taken` not `move` + `counted`.
+
+    `plan_market_visit` has its own expected-revenue aggregation path
+    (`missing = taken - returned - tossed`), separate from the stand
+    planner's, so this exercises that path rather than assuming the stand
+    case covers it.
+    """
+    login(client)
+    recipe = create_recipe(
+        client,
+        ingredient_price_cents=1,
+        sizes=[
+            {
+                "name": "Pricey",
+                "portion_weight_g": 1,
+                "price_cents": _MAX_FIELD_AMOUNT,
+                "typical_yield_count": 1,
+            }
+        ],
+    )
+    size_id = recipe["sizes"][0]["id"]
+    bake(
+        client,
+        recipe_id=recipe["id"],
+        baked="2026-01-01",
+        expires="2026-01-10",
+        counts=[{"size_id": size_id, "count": 2000}],
+    )
+    market = create_location(client, "market", "Market")
+    entries_before = client.get("/api/v1/entries").json()
+
+    response = client.post(
+        "/api/v1/visits",
+        json={
+            "kind": "market",
+            "location_id": market["id"],
+            "rows": [{"size_id": size_id, "taken": 2000, "returned": 0, "tossed": 0}],
+            "revenue_cents": 0,
+            "fee_cents": 0,
+        },
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["field"] == "expected_revenue_cents"
+
+    entries_after = client.get("/api/v1/entries").json()
+    assert entries_after == entries_before
+
+
+def _bake_near_max_unit_cost(client: TestClient, *, baked: str, expires: str) -> int:
+    """Bake one unit whose frozen cost sits at exactly `MAX_TOTAL_CENTS`, priced at zero.
+
+    `10**9` (the per-field maximum) times a `1000`-unit recipe line gives
+    a batch (and, with a single size baked one at a time, a unit) cost of
+    `10**12` -- `domain.money.MAX_TOTAL_CENTS` itself, which
+    `record_bake` accepts since its check is strict (`>`, not `>=`).
+    Zero price keeps `expected_revenue_cents` at 0 when this unit is later
+    sold, isolating the movement-cost bound this exists to trip. Returns
+    the new recipe's size id.
+    """
+    ingredient_id = create_ingredient(client, _MAX_FIELD_AMOUNT, name=f"Costly {baked}")
+    recipe_response = client.post(
+        "/api/v1/recipes",
+        json={
+            "name": f"Near Max Cost {baked}",
+            "shelf_life_days": 30,
+            "lines": [{"ingredient_id": ingredient_id, "quantity": 1000}],
+            "sizes": [
+                {
+                    "name": "Only",
+                    "portion_weight_g": 1,
+                    "price_cents": 0,
+                    "typical_yield_count": 1,
+                }
+            ],
+        },
+    )
+    assert recipe_response.status_code == 201, recipe_response.json()
+    recipe = recipe_response.json()
+    size_id = recipe["sizes"][0]["id"]
+
+    bake(
+        client,
+        recipe_id=recipe["id"],
+        baked=baked,
+        expires=expires,
+        counts=[{"size_id": size_id, "count": 1}],
+    )
+    return size_id
+
+
+def test_stand_visit_movement_cost_overflow_is_rejected_and_writes_nothing(
+    client: TestClient,
+) -> None:
+    """Two batches, each individually within bound, overflow the visit's combined FIFO cost.
+
+    Each unit's frozen `unit_cost_cents` (`10**12`) and each row's
+    quantity are both within their own per-field bound, and each batch's
+    own total cost is within `MAX_TOTAL_CENTS` too -- but a stand visit
+    that empties both in one settlement sums `10**12 + 10**12`
+    Sold/Waste/Sampled cost, which crosses `MAX_TOTAL_CENTS` even though
+    `expected_revenue_cents` (both sizes are zero-price) stays 0. This is
+    the read path `db.queries._visit_costs_by_entry` sums in SQL:
+    unprotected, either unit's `unit_cost_cents * quantity` product alone
+    (`10**12 * 1`) already sits at SQLite's float-conversion boundary, and
+    summed they exceed it -- exactly what `_require_bounded_movement_cost`
+    exists to reject before anything is written.
+    """
+    login(client)
+    size_id = _bake_near_max_unit_cost(client, baked="2026-01-01", expires="2026-02-01")
+    other_size_id = _bake_near_max_unit_cost(client, baked="2026-01-02", expires="2026-02-02")
+
+    stand = create_location(client, "stand", "Stand")
+    kid = kitchen_id(client)
+    move(client, from_location_id=kid, to_location_id=stand["id"], size_id=size_id, quantity=1)
+    move(
+        client, from_location_id=kid, to_location_id=stand["id"], size_id=other_size_id, quantity=1
+    )
+    entries_before = client.get("/api/v1/entries").json()
+
+    response = client.post(
+        "/api/v1/visits",
+        json={
+            "kind": "stand",
+            "location_id": stand["id"],
+            "rows": [
+                {"size_id": size_id, "counted": 0, "tossed": 0, "pulled": 0, "added": 0},
+                {"size_id": other_size_id, "counted": 0, "tossed": 0, "pulled": 0, "added": 0},
+            ],
+            "revenue_cents": 0,
+        },
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["field"] == "movement_cost_cents"
 
     entries_after = client.get("/api/v1/entries").json()
     assert entries_after == entries_before

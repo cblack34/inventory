@@ -11,7 +11,8 @@ from them: ten recipe lines each at the per-field maximum give a recipe
 cost of ``10**19``, above SQLite's signed 64-bit ``INTEGER`` range
 (~9.22 * 10**18). ``MAX_TOTAL_CENTS`` and ``require_bounded_total`` below
 are the one place a *persisted total* (a batch's frozen cost, a visit's
-expected revenue) is checked before it reaches the database -- the
+expected revenue, or a visit's Sold+Waste+Sampled movement cost) is
+checked before it reaches the database -- the
 persistence boundary calls this, never the pure cost-split functions
 above, so a read-only estimate (never persisted, and a plain Python int)
 is unaffected.

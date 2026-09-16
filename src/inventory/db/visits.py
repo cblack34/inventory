@@ -31,6 +31,7 @@ from inventory.domain.visits import (
     MarketRow,
     Profit,
     StandRow,
+    VisitPlan,
     plan_market_visit,
     plan_stand_visit,
 )
@@ -156,6 +157,35 @@ def _build_context(session: Session) -> Context:
     )
 
 
+def _require_bounded_movement_cost(session: Session, context: Context, plan: VisitPlan) -> None:
+    """Reject a plan whose Sold+Waste+Sampled cost would exceed `MAX_TOTAL_CENTS`.
+
+    `_visit_costs_by_entry()` (`inventory.db.queries`) later re-sums
+    `unit_cost_cents * quantity` per destination in SQL for exactly these
+    movements; a per-size `unit_cost_cents` and a per-row quantity are each
+    individually bounded (`domain.money.MAX_TOTAL_CENTS`, `api.schemas.numbers`)
+    but their product is not, and FIFO can span several batches in one
+    visit, so the *sum* this planner is about to persist can still exceed
+    SQLite's signed 64-bit `INTEGER` range even though no single input did.
+    Computed here as a Python int (no overflow) before anything is
+    written, so a rejected visit never touches `entry`, `visit`, or
+    `movement`. `-_domain_visit_profit(...).profit_cents` reuses
+    `domain.visits.visit_profit`'s own cost sum (`revenue_cents = fee_cents
+    = 0` makes `profit_cents` exactly `-(sold + waste + sampled)`) rather
+    than re-deriving it here.
+    """
+    batch_ids = {movement.batch_id for movement in plan.movements}
+    movement_unit_costs = unit_costs(session, batch_ids)
+    total_movement_cost_cents = -_domain_visit_profit(
+        revenue_cents=0,
+        fee_cents=0,
+        movements=plan.movements,
+        unit_costs_cents=movement_unit_costs,
+        locations=context.locations,
+    ).profit_cents
+    require_bounded_total(total_movement_cost_cents, field="movement_cost_cents")
+
+
 def _write_visit(session: Session, write: _VisitWrite, *, now: datetime) -> int:
     entry = Entry(kind="visit", created_at=now, voided=False)
     session.add(entry)
@@ -192,9 +222,9 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
     `pulled`, or `added` on any row, and a `stand_id` that is missing,
     not a `stand`, or inactive -- all before loading stock.
     `plan_stand_visit` raises before returning if any size's counted,
-    tossed+pulled, or added is invalid, and an expected revenue past
-    `domain.money.MAX_TOTAL_CENTS` is rejected right after, so nothing
-    is written on rejection.
+    tossed+pulled, or added is invalid, and an expected revenue or a
+    Sold+Waste+Sampled movement cost past `domain.money.MAX_TOTAL_CENTS`
+    is rejected right after, so nothing is written on rejection.
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
@@ -205,6 +235,7 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
     _require_known_sizes(visit.rows, context.prices_cents)
     plan = plan_stand_visit(visit.stand_id, visit.rows, context)
     require_bounded_total(plan.expected_revenue_cents, field="expected_revenue_cents")
+    _require_bounded_movement_cost(session, context, plan)
 
     return _write_visit(
         session,
@@ -226,9 +257,9 @@ def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) 
     `taken`, `returned`, or `tossed` on any row, and a `market_id` that
     is missing, not a `market`, or inactive -- all before loading
     stock. `plan_market_visit` raises before returning if any size's
-    returned+tossed exceeds taken, and an expected revenue past
-    `domain.money.MAX_TOTAL_CENTS` is rejected right after, so nothing
-    is written on rejection.
+    returned+tossed exceeds taken, and an expected revenue or a
+    Sold+Waste+Sampled movement cost past `domain.money.MAX_TOTAL_CENTS`
+    is rejected right after, so nothing is written on rejection.
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
@@ -241,6 +272,7 @@ def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) 
     _require_known_sizes(visit.rows, context.prices_cents)
     plan = plan_market_visit(visit.market_id, visit.rows, context)
     require_bounded_total(plan.expected_revenue_cents, field="expected_revenue_cents")
+    _require_bounded_movement_cost(session, context, plan)
 
     return _write_visit(
         session,
