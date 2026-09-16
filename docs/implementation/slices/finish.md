@@ -89,7 +89,7 @@ The acceptance audit is a docs leaf on the spine after #49 merges; it needs no s
 
 - **Topology:** per-slice spine with leaf PRs.
 - **Branch or spine:** `slice/finish`; leaves `finish/api`, `finish/ci`, then `finish/audit`.
-- **Final PR:** to be opened when verification passes on the spine.
+- **Final PR:** [#54](https://github.com/cblack34/inventory/pull/54).
 - **Human merge gate:** Only the human may physically merge the final PR to `main`. Agents must stop when it is ready.
 
 ## Amendments
@@ -100,9 +100,9 @@ None.
 
 Complete once when the final PR is ready for human merge. Do not use this section for WIP status.
 
-- **Outcome:** pending.
-- **Verification:** pending.
-- **Deviations:** pending.
-- **Unresolved gates or risks:** pending.
-- **Final PR:** pending.
-- **Merge state:** pending.
+- **Outcome:** Delivered 2026-09-15. Persisted money totals are bounded at the persistence boundary by `MAX_TOTAL_CENTS = 10**12` in `domain/money.py` (batch total and unit costs, visit expected revenue, visit movement cost), rejected as 422 Problems naming the field; `shelf_life_days` uses the shared bounded `Count`; a `GET` on a POST-only `/api/v1` path answers 405 with `Allow`; `GET /api/v1/today` returns the business date and the bake form prefills `baked` from it; CI runs `check` and `e2e` as parallel jobs with a Playwright browser cache and `install-web` reinstalls only when the lockfile or manifest changes; `docs/implementation/acceptance-audit.md` traces all 47 acceptance criteria to tests or code, with six new tests closing the automated checks that were narrower than described.
+- **Verification:** `make check` exit 0 on code head 8e8b9b3 (pytest 484, vitest 42, types regenerated, no drift). `make e2e` was not run locally on the spine because the owner's Compose container held port 8000; CI's `e2e` job ran green on every leaf head and runs on the spine PR. Measured CI: 59 s wall on a cache hit versus about 97 s single-job. Curl evidence for every new API behavior is on [#52](https://github.com/cblack34/inventory/pull/52). Leaf evidence on [#51](https://github.com/cblack34/inventory/pull/51), [#52](https://github.com/cblack34/inventory/pull/52), [#53](https://github.com/cblack34/inventory/pull/53); issues [#49](https://github.com/cblack34/inventory/issues/49), [#50](https://github.com/cblack34/inventory/issues/50) carry the trail; backlog [#37](https://github.com/cblack34/inventory/issues/37) closes with the spine PR. The only commit after the code head is this record.
+- **Deviations:** The CI leaf changed the `Makefile` after review found `npm ci` running twice per e2e job; `install-web` became a stamp rule. The API leaf also bounded a visit's total movement cost after review showed SQLite silently promotes an overflowing integer product to a float. A third audit leaf was added for the acceptance audit and its six tests rather than folding them into the API leaf. Copilot claims pushed back with evidence on the CI leaf: historical slice records are not rewritten to match later CI shape.
+- **Unresolved gates or risks:** Hosting deferred by the owner (Compose on a home server is the intended first deployment; Caddy, TLS, cron, and object-storage upload wait on that). Owner human checks: every screen on a phone at 375 px; one backup run against a running instance. Owner action after merge: rename the ruleset's required checks to `check` and `e2e`.
+- **Final PR:** [#54](https://github.com/cblack34/inventory/pull/54).
+- **Merge state:** Ready for the human to merge once CI and the Copilot pass are green; agents do not merge to `main`.
