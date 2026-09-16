@@ -219,8 +219,9 @@ def record_stand_visit(session: Session, visit: StandVisit, *, now: datetime) ->
     not a `stand`, or inactive -- all before loading stock.
     `plan_stand_visit` raises before returning if any size's counted,
     tossed+pulled, or added is invalid, and an expected revenue or a
-    Sold+Waste+Sampled movement cost past `domain.money.MAX_TOTAL_CENTS`
-    is rejected right after, so nothing is written on rejection.
+    total planned movement cost (every leg, transfers included) past
+    `domain.money.MAX_TOTAL_CENTS` is rejected right after, so nothing is
+    written on rejection.
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
@@ -254,8 +255,9 @@ def record_market_visit(session: Session, visit: MarketVisit, *, now: datetime) 
     is missing, not a `market`, or inactive -- all before loading
     stock. `plan_market_visit` raises before returning if any size's
     returned+tossed exceeds taken, and an expected revenue or a
-    Sold+Waste+Sampled movement cost past `domain.money.MAX_TOTAL_CENTS`
-    is rejected right after, so nothing is written on rejection.
+    total planned movement cost (every leg, transfers included) past
+    `domain.money.MAX_TOTAL_CENTS` is rejected right after, so nothing is
+    written on rejection.
     """
     if visit.revenue_cents < 0:
         raise InvalidQuantityError(field="revenue_cents", value=visit.revenue_cents, minimum=0)
