@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -38,18 +40,15 @@ def _run(overrides: dict[str, str | None], tmp_path: Path) -> subprocess.Complet
     )
 
 
-def test_missing_shared_password_exits_nonzero_naming_it(tmp_path: Path) -> None:
-    result = _run({"SHARED_PASSWORD": None}, tmp_path)
+@pytest.mark.parametrize("variable", ["SHARED_PASSWORD", "SESSION_SECRET"])
+@pytest.mark.parametrize("value", [None, ""], ids=["unset", "empty"])
+def test_missing_or_empty_required_variable_exits_nonzero_naming_it(
+    variable: str, value: str | None, tmp_path: Path
+) -> None:
+    result = _run({variable: value}, tmp_path)
 
     assert result.returncode != 0
-    assert "SHARED_PASSWORD" in result.stderr
-
-
-def test_empty_shared_password_exits_nonzero_naming_it(tmp_path: Path) -> None:
-    result = _run({"SHARED_PASSWORD": ""}, tmp_path)
-
-    assert result.returncode != 0
-    assert "SHARED_PASSWORD" in result.stderr
+    assert variable in result.stderr
 
 
 def test_short_session_secret_exits_nonzero_naming_it(tmp_path: Path) -> None:

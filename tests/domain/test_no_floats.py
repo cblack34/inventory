@@ -15,8 +15,27 @@ from decimal import Decimal
 from typing import Any
 
 import inventory.domain as domain_pkg
+from inventory.domain.costing import RecipeLine, SizeYield
+from inventory.domain.ledger import Movement, PlannedMovement
+from inventory.domain.visits import MarketRow, Profit, StandRow
 
 _FORBIDDEN_TYPES = {float, Decimal}
+
+_EXPECTED_INT_FIELDS: dict[type, tuple[str, ...]] = {
+    RecipeLine: ("quantity", "unit_price_cents"),
+    SizeYield: ("portion_weight_g", "count"),
+    Movement: ("quantity",),
+    PlannedMovement: ("quantity",),
+    StandRow: ("counted", "tossed", "pulled", "added"),
+    MarketRow: ("taken", "returned", "tossed"),
+    Profit: ("sold_cost_cents", "waste_cost_cents", "sampled_cost_cents", "profit_cents"),
+}
+"""The money/weight/quantity fields `docs/acceptance.md`'s Money bullet
+enumerates that live on a domain dataclass, mirroring the explicit lists
+`test_pinned_money_weight_and_quantity_columns_are_integer` (SQLAlchemy)
+and `test_every_catalog_money_weight_and_quantity_field_is_integer`
+(OpenAPI) already keep for their own layer. Update this alongside those
+two whenever a money, weight, or quantity field is added."""
 
 
 def _mentions_forbidden_type(annotation: Any) -> bool:
@@ -63,6 +82,23 @@ def test_no_domain_dataclass_field_is_float_or_decimal() -> None:
                 )
 
     assert offenders == []
+
+
+def test_enumerated_domain_dataclass_money_and_quantity_fields_are_exactly_int() -> None:
+    """Positive counterpart to `test_no_domain_dataclass_field_is_float_or_decimal`.
+
+    That test only asserts a field is not `float`/`Decimal`; a field
+    typed e.g. `str` for a quantity would pass it undetected, unlike the
+    positive `isinstance(..., Integer)` / `declared_type == "integer"`
+    checks the SQLAlchemy and catalog-OpenAPI sides use. This asserts
+    the enumerated fields resolve to exactly `int`.
+    """
+    for dataclass_type, fields in _EXPECTED_INT_FIELDS.items():
+        hints = typing.get_type_hints(dataclass_type)
+        for field in fields:
+            assert hints[field] is int, (
+                f"{dataclass_type.__qualname__}.{field} is {hints[field]!r}, not int"
+            )
 
 
 def test_forbidden_type_detection_sees_nested_annotations() -> None:
