@@ -17,6 +17,23 @@ and their rows below now read `none`. `make check` exits 0 on that head
 (464 tests, up from 458); `make e2e` was not run for this docs-and-tests
 leaf.
 
+Extended a third time addressing Copilot's review on
+`cblack34/inventory#53`: the Money row below closed the three remaining
+coverage gaps that review found (`EntryRead.revenue_cents`/`profit_cents`
+missing from `tests/api/test_ledger_openapi.py`'s enumeration,
+`VisitPlan.expected_revenue_cents` and `_Leg.quantity` missing from
+`tests/domain/test_no_floats.py`'s, and no test walking Pydantic
+`model_fields` directly — added as
+`tests/api/test_pydantic_money_fields.py`).
+
+Row/section count: the table below traces **47 criterion rows across
+the 11 product sections that carry one** (Ingredients and recipes
+through Money; `Run and verify` and `Gaps and human items` are prose,
+not criterion tables), counted directly off the `|`-delimited rows
+under each `##` heading. This leaf's own PR description instead
+claimed "39 rows over 10 sections", which undercounts both figures;
+that description is corrected separately.
+
 ## Run and verify
 
 Both facts hold by inspection of the `Makefile`:
@@ -134,7 +151,7 @@ Both facts hold by inspection of the `Makefile`:
 
 | Criterion (short) | Kind | Evidence | Gap |
 |---|---|---|---|
-| Every money/weight/quantity field is exactly `int` everywhere (SQLAlchemy, Pydantic, domain dataclasses); none is `float`/`Decimal`; OpenAPI declares each as `integer`; strict-int validation (`"1"`, `1.5` → 422) | Automated | SQLAlchemy: `tests/db/test_columns.py::test_pinned_money_weight_and_quantity_columns_are_integer` (asserts `isinstance(column_type, Integer)` for every pinned column name/suffix across all mapped tables) and `test_no_column_anywhere_is_float_or_numeric`; Domain dataclasses: `tests/domain/test_no_floats.py::test_no_domain_dataclass_field_is_float_or_decimal` (module walk over every `inventory.domain` submodule, asserts no field mentions `float`/`Decimal`, nested or not) and `test_enumerated_domain_dataclass_money_and_quantity_fields_are_exactly_int` (positive counterpart: an explicit field list per dataclass, asserting `typing.get_type_hints(...)[field] is int`); OpenAPI-integer: `tests/api/test_catalog_openapi.py::test_every_catalog_money_weight_and_quantity_field_is_integer` (catalog resources) and `tests/api/test_ledger_openapi.py::test_every_ledger_money_weight_and_quantity_field_is_integer` (ledger resources — `BakeCountItem`, `BatchRead`/`BatchSizeRead`, `MovementCreate`, `StandRowIn`/`MarketRowIn`, `StandVisitCreate`/`MarketVisitCreate`, `VisitRead`, `ProfitRead`, `BatchStockRead`/`SizeStockRead`), both hard-coded field lists rather than a suffix heuristic; strict-int + negative rejection: `tests/api/test_numeric_bounds.py`, `tests/api/test_ledger_money.py`, `tests/api/test_recipes.py::test_strict_int_rejects_string_and_float_for_a_weight_field`/`test_strict_int_rejects_string_and_float_for_a_quantity_field`; pyright strict: `typeCheckingMode = "strict"` in `pyproject.toml`, run by `make check`'s `check-python` | none |
+| Every money/weight/quantity field is exactly `int` everywhere (SQLAlchemy, Pydantic, domain dataclasses); none is `float`/`Decimal`; OpenAPI declares each as `integer`; strict-int validation (`"1"`, `1.5` → 422) | Automated | SQLAlchemy: `tests/db/test_columns.py::test_pinned_money_weight_and_quantity_columns_are_integer` (asserts `isinstance(column_type, Integer)` for every pinned column name/suffix across all mapped tables) and `test_no_column_anywhere_is_float_or_numeric`; Domain dataclasses: `tests/domain/test_no_floats.py::test_no_domain_dataclass_field_is_float_or_decimal` (module walk over every `inventory.domain` submodule, asserts no field mentions `float`/`Decimal`, nested or not) and `test_enumerated_domain_dataclass_money_and_quantity_fields_are_exactly_int` (positive counterpart: an explicit field list per dataclass — including `VisitPlan.expected_revenue_cents` and `_Leg.quantity`, both added closing this leaf's third review pass — asserting `typing.get_type_hints(...)[field] is int`); OpenAPI-integer: `tests/api/test_catalog_openapi.py::test_every_catalog_money_weight_and_quantity_field_is_integer` (catalog resources) and `tests/api/test_ledger_openapi.py::test_every_ledger_money_weight_and_quantity_field_is_integer` (ledger resources — `BakeCountItem`, `BatchRead`/`BatchSizeRead`, `MovementCreate`, `StandRowIn`/`MarketRowIn`, `StandVisitCreate`/`MarketVisitCreate`, `VisitRead`, `ProfitRead`, `BatchStockRead`/`SizeStockRead`, and now `EntryRead.revenue_cents`/`profit_cents`, added the same pass), both hard-coded field lists rather than a suffix heuristic; direct Pydantic `model_fields` enumeration (the layer the OpenAPI checks above don't reach — they inspect generated JSON Schema, not the model class itself): `tests/api/test_pydantic_money_fields.py::test_enumerated_pydantic_money_weight_and_quantity_fields_are_exactly_int` (every money/weight/quantity field on every `BaseModel` in `inventory.api.schemas.catalog`, `inventory.api.schemas.ledger`, `inventory.api.auth`, and `inventory.app`, asserted `int` or `int \| None` via `model_fields`) and `test_no_pydantic_model_field_is_float_or_decimal` (negative backstop over every field on every walked model); strict-int + negative rejection: `tests/api/test_numeric_bounds.py`, `tests/api/test_ledger_money.py`, `tests/api/test_recipes.py::test_strict_int_rejects_string_and_float_for_a_weight_field`/`test_strict_int_rejects_string_and_float_for_a_quantity_field`; pyright strict: `typeCheckingMode = "strict"` in `pyproject.toml`, run by `make check`'s `check-python` | none |
 | Every quantity/money input field rejected if negative; profit/expected-vs-actual difference may be negative | Automated | `tests/api/test_ledger_money.py` (one field per family: bake count, stand-row counted, visit revenue, market fee); `tests/api/test_visits.py::test_fee_exceeding_revenue_gives_a_negative_profit_and_a_200`; `tests/domain/test_visits.py::test_fee_exceeding_revenue_gives_negative_profit_not_an_error` | none |
 
 ## Gaps and human items

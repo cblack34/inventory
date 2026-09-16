@@ -17,7 +17,17 @@ from typing import Any
 import inventory.domain as domain_pkg
 from inventory.domain.costing import RecipeLine, SizeYield
 from inventory.domain.ledger import Movement, PlannedMovement
-from inventory.domain.visits import MarketRow, Profit, StandRow
+
+# `_Leg` is a private module-level dataclass (no public re-export); imported
+# directly, with an explicit pyright suppression, so its `quantity` field
+# can be pinned alongside every other domain money/quantity field below.
+from inventory.domain.visits import (
+    MarketRow,
+    Profit,
+    StandRow,
+    VisitPlan,
+    _Leg,  # pyright: ignore[reportPrivateUsage]
+)
 
 _FORBIDDEN_TYPES = {float, Decimal}
 
@@ -29,6 +39,8 @@ _EXPECTED_INT_FIELDS: dict[type, tuple[str, ...]] = {
     StandRow: ("counted", "tossed", "pulled", "added"),
     MarketRow: ("taken", "returned", "tossed"),
     Profit: ("sold_cost_cents", "waste_cost_cents", "sampled_cost_cents", "profit_cents"),
+    VisitPlan: ("expected_revenue_cents",),
+    _Leg: ("quantity",),
 }
 """The money/weight/quantity fields `docs/acceptance.md`'s Money bullet
 enumerates that live on a domain dataclass, mirroring the explicit lists

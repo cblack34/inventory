@@ -104,6 +104,11 @@ def test_every_ledger_money_weight_and_quantity_field_is_integer(app: FastAPI) -
         ),
         "BatchStockRead": ("quantity",),
         "SizeStockRead": ("quantity",),
+        # `EntryRead.revenue_cents`/`profit_cents` are `int | None` (a
+        # non-visit entry has neither); the OpenAPI shape is
+        # `anyOf: [{type: integer}, {type: null}]`, which
+        # `_declared_type` already unwraps to the non-null branch.
+        "EntryRead": ("revenue_cents", "profit_cents"),
     }
 
     for schema_name, fields in expected_integer_fields.items():
